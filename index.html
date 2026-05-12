@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="ko"> <head>
-<head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
     <title>HITACHI Team Scheduler</title>
@@ -16,7 +15,6 @@
                 extend: {
                     colors: {
                         "primary": "#b7000c", 
-                        "primary-hover": "#e60012",
                         "surface": "var(--bg-surface)",
                         "background": "var(--bg-body)",
                         "border": "var(--border-color)",
@@ -30,26 +28,28 @@
     <style>
         :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; }
         html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
-        body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); }
-        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
         
         .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(130px, 1fr)); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
-        .grid-cell { background-color: var(--bg-surface); min-height: 100px; padding: 8px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: background-color 0.2s; }
-        .grid-cell:hover { background-color: var(--bg-body); }
-        .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 12px 8px; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        .grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+        .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; }
         
-        .empty-cell { background-color: var(--border-color); opacity: 0.3; cursor: not-allowed; }
+        /* 💡 오늘 날짜 하이라이트 */
+        .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
+        html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
 
-        .event-card { position: relative; background-color: var(--bg-surface); border-left: 4px solid #b7000c; padding: 8px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .event-card:active { cursor: grabbing; opacity: 0.8; }
-        .event-card.vacation { border-left-color: #3b82f6; background-color: rgba(59, 130, 246, 0.05); }
-        
-        .delete-btn { position: absolute; top: 4px; right: 4px; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+        /* 💡 카테고리별 색상 태그 */
+        .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
+        .cat-normal { border-left-color: #b7000c; } /* 일반: 히타치 레드 */
+        .cat-pm { border-left-color: #10b981; color: #059669; }     /* PM: 초록 */
+        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } /* 긴급: 주황 */
+        .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  /* Setup: 보라 */
+        .vacation { border-left-color: #3b82f6; color: #2563eb; }   /* 휴가: 파랑 */
+
+        .delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; }
         .event-card:hover .delete-btn { opacity: 1; }
-        .delete-btn:hover { color: #b7000c; }
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -57,18 +57,17 @@
 <header class="sticky top-0 z-40 bg-surface border-b border-border px-4 md:px-6 h-16 flex items-center justify-between">
     <div class="flex items-center gap-3">
         <span class="text-2xl font-black tracking-tighter text-primary">HITACHI</span>
-        <div class="h-5 w-[1px] bg-border mx-1"></div>
-        <span class="text-sm font-bold uppercase tracking-widest text-text-main hidden md:block">Team Schedule</span>
+        <span class="text-sm font-bold text-text-main hidden md:block">Team Schedule</span>
     </div>
     <div class="flex items-center gap-2">
-        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded transition-colors flex items-center gap-1" onclick="loadEventsFromSheet()">
+        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
             <span class="material-symbols-outlined text-[18px]">sync</span> 동기화
         </button>
-        <button class="bg-surface border border-border text-text-main text-xs font-bold px-3 py-1.5 rounded transition-colors" onclick="toggleDarkMode()">
-            <span class="material-symbols-outlined text-[18px]">dark_mode</span>
-        </button>
-        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors" onclick="clickToAddEvent()">
+        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="clickToAddEvent()">
             <span class="material-symbols-outlined text-[18px]">add</span> 일정 추가
+        </button>
+        <button class="bg-surface border border-border text-text-main text-xs font-bold px-3 py-1.5 rounded" onclick="toggleDarkMode()">
+            <span class="material-symbols-outlined text-[18px]">dark_mode</span>
         </button>
     </div>
 </header>
@@ -76,281 +75,174 @@
 <main class="flex-1 p-4 md:p-8 flex flex-col max-w-[1400px] mx-auto w-full">
     <div class="flex items-center justify-between mb-8">
         <h2 class="text-2xl md:text-3xl font-black flex items-center gap-4">
-            <button class="text-text-muted hover:text-primary transition-colors" onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[32px]">chevron_left</span></button>
-            <span id="month-title">2026년 5월</span>
-            <button class="text-text-muted hover:text-primary transition-colors" onclick="changeMonth(1)"><span class="material-symbols-outlined text-[32px]">chevron_right</span></button>
+            <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[32px]">chevron_left</span></button>
+            <span id="month-title"></span>
+            <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[32px]">chevron_right</span></button>
         </h2>
         <span class="cloud-sync-badge text-xs text-text-muted bg-surface px-3 py-1.5 border border-border rounded flex items-center gap-1 font-bold">
-            <span class="material-symbols-outlined text-[16px] animate-spin">sync</span> DB 로딩중...
+            <span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 대기 중
         </span>
     </div>
-
     <div id="calendar-container" class="space-y-12"></div>
 </main>
 
 <script>
-    // ==========================================
-    // 🔗 1. 구글 시트 연동 설정
-    // ==========================================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxL31G_BjTBSntFg6GO9VC5T5zBg5gJmG4LFBg8yA6lJJRfM64INFwcgh1M3UJJT4uDeQ/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcswIiPOAbvCUtYK8kw0R3I7-oyGtIHxsebMQMyVSQ6quUglhoYRLXbvo-cdcaeL_vuw/exec"; 
 
-    const today = new Date();
-    let currentYear = today.getFullYear();
-    let currentMonth = today.getMonth() + 1;
+    // 💡 자동 날짜 세팅
+    const todayObj = new Date();
+    let currentYear = todayObj.getFullYear();
+    let currentMonth = todayObj.getMonth() + 1;
     let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
 
     async function sendToSheet(payload) {
         if (!SCRIPT_URL.startsWith("https")) return;
         try {
-            // 💡 [수정됨] 캐시 무력화 URL 적용 및 no-store 강제
             const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
             await fetch(noCacheUrl, {
                 method: "POST",
-                cache: "no-store", 
+                cache: "no-store",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify(payload)
             });
-        } catch (error) {
-            console.error("DB 연동 에러:", error);
-        }
+        } catch (e) { console.error(e); }
     }
 
-    // ==========================================
-    // 📅 2. 캘린더 UI 렌더링
-    // ==========================================
     function generateCalendar() {
         const container = document.getElementById('calendar-container');
-        container.innerHTML = ''; 
-        
+        container.innerHTML = '';
         document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
-        
-        const badge = document.querySelector('.cloud-sync-badge');
-        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> DB 로딩중...';
 
         const firstDay = new Date(currentYear, currentMonth - 1, 1);
         const lastDay = new Date(currentYear, currentMonth, 0);
-        let startIdx = (firstDay.getDay() + 6) % 7; 
+        let startIdx = (firstDay.getDay() + 6) % 7;
         let totalDays = lastDay.getDate();
         
         let weeks = [];
         let currentWeek = new Array(7).fill(null);
-        let currentDay = 1;
-        
-        for (let i = startIdx; i < 7; i++) currentWeek[i] = currentDay++;
+        let dayCount = 1;
+        for (let i = startIdx; i < 7; i++) currentWeek[i] = dayCount++;
         weeks.push(currentWeek);
-        
-        while (currentDay <= totalDays) {
+        while (dayCount <= totalDays) {
             let week = new Array(7).fill(null);
-            for (let i = 0; i < 7 && currentDay <= totalDays; i++) week[i] = currentDay++;
+            for (let i = 0; i < 7 && dayCount <= totalDays; i++) week[i] = dayCount++;
             weeks.push(week);
         }
 
         const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-        
-        weeks.forEach((week, weekIndex) => {
+        const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+
+        weeks.forEach((week, wIdx) => {
             const weekLabel = document.createElement('h3');
-            weekLabel.className = 'text-xl font-bold mb-3 text-text-main border-l-4 border-primary pl-3 mt-4';
-            weekLabel.innerText = `${currentMonth}월 ${weekIndex + 1}주차`;
+            weekLabel.className = 'text-lg font-bold mb-3 border-l-4 border-primary pl-3 mt-6';
+            weekLabel.innerText = `${currentMonth}월 ${wIdx + 1}주차`;
             container.appendChild(weekLabel);
 
             const gridWrapper = document.createElement('div');
             gridWrapper.className = 'overflow-x-auto no-scrollbar shadow-sm rounded-lg mb-8';
-            
             const grid = document.createElement('div');
             grid.className = 'grid-schedule min-w-[1000px]';
             
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
             week.forEach((day, idx) => {
-                let colorClass = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
-                if (day) {
-                    grid.innerHTML += `<div class="grid-header ${colorClass}">${dayNames[idx]} (${currentMonth}/${day})</div>`;
-                } else {
-                    grid.innerHTML += `<div class="grid-header empty-cell"></div>`;
-                }
+                let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
+                grid.innerHTML += `<div class="grid-header ${color}">${day ? dayNames[idx]+' ('+day+')' : ''}</div>`;
             });
 
             lines.forEach(line => {
-                let rowHtml = `<div class="grid-header bg-surface text-sm">${line}</div>`;
+                grid.innerHTML += `<div class="grid-header bg-surface">${line}</div>`;
                 week.forEach(day => {
                     if (day) {
-                        const formattedDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                        rowHtml += `<div class="grid-cell dropzone" data-line="${line}" data-date="${formattedDate}" onclick="addEvent(event, this)"></div>`;
+                        const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                        const isToday = dateStr === todayStr ? 'is-today' : '';
+                        grid.innerHTML += `<div class="grid-cell dropzone ${isToday}" data-line="${line}" data-date="${dateStr}" onclick="addEvent(event, this)"></div>`;
                     } else {
-                        rowHtml += `<div class="grid-cell empty-cell"></div>`;
+                        grid.innerHTML += `<div class="grid-cell bg-gray-100 opacity-20"></div>`;
                     }
                 });
-                grid.innerHTML += rowHtml;
             });
-
             gridWrapper.appendChild(grid);
             container.appendChild(gridWrapper);
         });
 
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
-                group: 'shared', 
-                animation: 150,
-                ghostClass: 'opacity-50',
+                group: 'shared', animation: 150, ghostClass: 'opacity-50',
                 onEnd: function(evt) {
-                    const item = evt.item;
-                    const toZone = evt.to;
-                    const isVacation = toZone.dataset.line === "🏖️ 휴가자";
-                    
-                    if(isVacation) item.classList.add('vacation');
-                    else item.classList.remove('vacation');
-
-                    sendToSheet({
-                        action: 'update',
-                        id: item.dataset.id,
-                        date: toZone.dataset.date,
-                        line: toZone.dataset.line,
-                        isVacation: isVacation
-                    });
+                    const item = evt.item; const to = evt.to;
+                    const isVac = to.dataset.line === "🏖️ 휴가자";
+                    item.className = `event-card ${isVac ? 'vacation' : item.dataset.catClass}`;
+                    sendToSheet({ action: 'update', id: item.dataset.id, date: to.dataset.date, line: to.dataset.line, isVacation: isVac });
                 }
             });
         });
-
-        if(SCRIPT_URL.startsWith("https")) {
-            loadEventsFromSheet();
-        } else {
-            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">error</span> 연동 URL 없음';
-        }
+        loadEventsFromSheet();
     }
 
-    // ==========================================
-    // ☁️ 3. 데이터 로딩 및 동기화
-    // ==========================================
     async function loadEventsFromSheet() {
         const badge = document.querySelector('.cloud-sync-badge');
-        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중...';
-
+        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중';
         try {
-            // 💡 [수정됨] 캐시 무력화 URL 적용 및 no-store 강제
-            const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
-            const res = await fetch(noCacheUrl, {
-                method: "POST",
-                cache: "no-store",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action: 'read' })
-            });
+            const url = SCRIPT_URL + "?t=" + new Date().getTime();
+            const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
             const events = await res.json();
-
-            // 기존 카드 싹 지우기 (중복 방지)
-            document.querySelectorAll('.event-card').forEach(card => card.remove());
-
+            document.querySelectorAll('.event-card').forEach(c => c.remove());
             events.forEach(ev => {
-                const targetCell = document.querySelector(`[data-date="${ev.date}"][data-line="${ev.line}"]`);
-                if (targetCell) {
+                const target = document.querySelector(`[data-date="${ev.date}"][data-line="${ev.line}"]`);
+                if (target) {
                     const card = document.createElement('div');
-                    card.className = `event-card ${String(ev.isVacation) === 'true' ? 'vacation' : ''}`;
+                    const catClass = ev.isVacation === 'true' ? 'vacation' : (ev.category || 'cat-normal');
+                    card.className = `event-card ${catClass}`;
                     card.dataset.id = ev.id;
-                    card.innerHTML = `
-                        ${ev.title}
-                        <span class="material-symbols-outlined delete-btn text-[18px]" onclick="deleteEvent(event, this)">close</span>
-                    `;
-                    targetCell.appendChild(card);
+                    card.dataset.catClass = ev.category || 'cat-normal';
+                    card.innerHTML = `${ev.title}<span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>`;
+                    target.appendChild(card);
                 }
             });
-            
-            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> Google Sheet 동기화 됨';
-        } catch (e) {
-            console.error(e);
-            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">cloud_off</span> 연결 실패';
-        }
+            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
+        } catch (e) { badge.innerHTML = '연결 실패'; }
     }
 
-    // ==========================================
-    // 📝 4. 기능 함수
-    // ==========================================
+    // 💡 일정 추가 (연속 작업 & 색상 태그 포함)
     function addEvent(event, cell) {
         if(event.target !== cell) return;
-
-        const title = prompt(`${cell.dataset.date} / [${cell.dataset.line}]\n내용을 입력하세요:`);
-        if(!title) return;
-
-        const newId = 'EVT_' + Date.now(); 
-        const isVac = cell.dataset.line === '🏖️ 휴가자';
-
-        const card = document.createElement('div');
-        card.className = `event-card ${isVac ? 'vacation' : ''}`;
-        card.dataset.id = newId;
-        card.innerHTML = `
-            ${title}
-            <span class="material-symbols-outlined delete-btn text-[18px]" onclick="deleteEvent(event, this)">close</span>
-        `;
-        cell.appendChild(card);
-
-        sendToSheet({ action: 'add', id: newId, date: cell.dataset.date, line: cell.dataset.line, title: title, isVacation: isVac });
-    }
-
-    function deleteEvent(event, btn) {
-        event.stopPropagation(); 
-        if(confirm('삭제하시겠습니까?')) {
-            const card = btn.parentElement;
-            const targetId = card.dataset.id;
-            card.remove();
-            sendToSheet({ action: 'delete', id: targetId });
-        }
-    }
-
-    // 💡 상단 [일정 추가] 버튼을 눌렀을 때 실행되는 함수
-    function clickToAddEvent() {
-        const dateInput = prompt(`몇 일에 일정을 추가하시겠습니까?\n(1 ~ ${new Date(currentYear, currentMonth, 0).getDate()} 사이의 숫자만 입력)`);
-        if(!dateInput) return;
-        
-        const lineInput = prompt(`어느 라인에 추가하시겠습니까?\n(예: P1F, P2D, 🏖️ 휴가자 등)`);
-        if(!lineInput) return;
-
         const title = prompt("일정 내용을 입력하세요:");
         if(!title) return;
+        const catNum = prompt("분류를 선택하세요:\n1:일반(Red), 2:PM(Green), 3:긴급(Orange), 4:Setup(Purple)");
+        const catMap = {"1":"cat-normal", "2":"cat-pm", "3":"cat-urgent", "4":"cat-setup"};
+        const category = catMap[catNum] || "cat-normal";
+        const duration = parseInt(prompt("며칠 동안 진행되나요? (숫자만 입력, 예: 3)", "1")) || 1;
 
-        // 입력받은 날짜와 라인을 조합해서 어느 칸에 넣을지 찾습니다.
-        const formattedDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dateInput).padStart(2, '0')}`;
-        const targetCell = document.querySelector(`[data-date="${formattedDate}"][data-line="${lineInput.trim()}"]`);
-
-        if(targetCell) {
-            const newId = 'EVT_' + Date.now(); 
-            const isVac = lineInput.trim() === '🏖️ 휴가자';
-
-            const card = document.createElement('div');
-            card.className = `event-card ${isVac ? 'vacation' : ''}`;
-            card.dataset.id = newId;
-            card.innerHTML = `
-                ${title}
-                <span class="material-symbols-outlined delete-btn text-[18px]" onclick="deleteEvent(event, this)">close</span>
-            `;
-            targetCell.appendChild(card);
-
-            // 구글 시트에 저장
-            sendToSheet({ action: 'add', id: newId, date: formattedDate, line: lineInput.trim(), title: title, isVacation: isVac });
-        } else {
-            alert("입력하신 날짜나 라인을 캘린더에서 찾을 수 없습니다. (띄어쓰기 등 명칭을 정확히 입력해주세요!)");
+        for(let i=0; i<duration; i++) {
+            const d = new Date(cell.dataset.date);
+            d.setDate(d.getDate() + i);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const targetCell = document.querySelector(`[data-date="${dateStr}"][data-line="${cell.dataset.line}"]`);
+            
+            if(targetCell) {
+                const newId = 'EVT_' + Date.now() + i;
+                const isVac = cell.dataset.line === '🏖️ 휴가자';
+                sendToSheet({ action: 'add', id: newId, date: dateStr, line: cell.dataset.line, title: title, isVacation: isVac, category: category });
+            }
         }
-    }
-    function changeMonth(delta) {
-        currentMonth += delta;
-        if(currentMonth > 12) { currentMonth = 1; currentYear++; }
-        if(currentMonth < 1) { currentMonth = 12; currentYear--; }
-        generateCalendar();
+        setTimeout(loadEventsFromSheet, 500); // 연속 등록 후 리로드
     }
 
-    function toggleDarkMode() {
-        document.documentElement.classList.toggle('dark');
+    function clickToAddEvent() {
+        const dateInput = prompt("시작 날짜를 입력하세요 (예: 12):");
+        if(!dateInput) return;
+        const lineInput = prompt("라인 명칭을 입력하세요 (예: P1F):");
+        const cell = document.querySelector(`[data-date="${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(dateInput).padStart(2,'0')}"][data-line="${lineInput}"]`);
+        if(cell) addEvent({target: cell}, cell);
+        else alert("날짜나 라인이 올바르지 않습니다.");
     }
 
-    // 초기 달력 렌더링
+    function deleteEvent(e, btn) { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) { sendToSheet({ action: 'delete', id: btn.parentElement.dataset.id }); btn.parentElement.remove(); } }
+    function changeMonth(d) { currentMonth += d; if(currentMonth>12){currentMonth=1; currentYear++;} if(currentMonth<1){currentMonth=12; currentYear--;} generateCalendar(); }
+    function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
+
     generateCalendar();
-
-    // ==========================================
-    // ⏰ 5. 1분 자동 동기화 로직
-    // ==========================================
-    setInterval(() => {
-        if (SCRIPT_URL.startsWith("https")) {
-            console.log("백그라운드 실시간 동기화 실행 중...");
-            loadEventsFromSheet();
-        }
-    }, 60000); // 60000ms = 1분
-
+    setInterval(loadEventsFromSheet, 60000);
 </script>
 </body>
 </html>
