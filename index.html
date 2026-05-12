@@ -67,8 +67,8 @@
         <button class="bg-surface border border-border text-text-main text-xs font-bold px-3 py-1.5 rounded transition-colors" onclick="toggleDarkMode()">
             <span class="material-symbols-outlined text-[18px]">dark_mode</span>
         </button>
-        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors" onclick="addNewLine()">
-            <span class="material-symbols-outlined text-[18px]">add</span> 라인 추가
+        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors" onclick="clickToAddEvent()">
+            <span class="material-symbols-outlined text-[18px]">add</span> 일정 추가
         </button>
     </div>
 </header>
@@ -94,8 +94,9 @@
     // ==========================================
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxL31G_BjTBSntFg6GO9VC5T5zBg5gJmG4LFBg8yA6lJJRfM64INFwcgh1M3UJJT4uDeQ/exec"; 
 
-    let currentYear = 2026;
-    let currentMonth = 5;
+    const today = new Date();
+    let currentYear = today.getFullYear();
+    let currentMonth = today.getMonth() + 1;
     let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
 
     async function sendToSheet(payload) {
@@ -292,13 +293,40 @@
         }
     }
 
-    function addNewLine() {
-        const name = prompt("새 라인 명칭:");
-        if(!name) return;
-        lines.push(name.trim());
-        generateCalendar(); 
-    }
+    // 💡 상단 [일정 추가] 버튼을 눌렀을 때 실행되는 함수
+    function clickToAddEvent() {
+        const dateInput = prompt(`몇 일에 일정을 추가하시겠습니까?\n(1 ~ ${new Date(currentYear, currentMonth, 0).getDate()} 사이의 숫자만 입력)`);
+        if(!dateInput) return;
+        
+        const lineInput = prompt(`어느 라인에 추가하시겠습니까?\n(예: P1F, P2D, 🏖️ 휴가자 등)`);
+        if(!lineInput) return;
 
+        const title = prompt("일정 내용을 입력하세요:");
+        if(!title) return;
+
+        // 입력받은 날짜와 라인을 조합해서 어느 칸에 넣을지 찾습니다.
+        const formattedDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dateInput).padStart(2, '0')}`;
+        const targetCell = document.querySelector(`[data-date="${formattedDate}"][data-line="${lineInput.trim()}"]`);
+
+        if(targetCell) {
+            const newId = 'EVT_' + Date.now(); 
+            const isVac = lineInput.trim() === '🏖️ 휴가자';
+
+            const card = document.createElement('div');
+            card.className = `event-card ${isVac ? 'vacation' : ''}`;
+            card.dataset.id = newId;
+            card.innerHTML = `
+                ${title}
+                <span class="material-symbols-outlined delete-btn text-[18px]" onclick="deleteEvent(event, this)">close</span>
+            `;
+            targetCell.appendChild(card);
+
+            // 구글 시트에 저장
+            sendToSheet({ action: 'add', id: newId, date: formattedDate, line: lineInput.trim(), title: title, isVacation: isVac });
+        } else {
+            alert("입력하신 날짜나 라인을 캘린더에서 찾을 수 없습니다. (띄어쓰기 등 명칭을 정확히 입력해주세요!)");
+        }
+    }
     function changeMonth(delta) {
         currentMonth += delta;
         if(currentMonth > 12) { currentMonth = 1; currentYear++; }
