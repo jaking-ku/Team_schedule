@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="dark">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
@@ -52,7 +52,7 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen dark">
+<body class="flex flex-col min-h-screen">
 
 <header class="sticky top-0 z-40 bg-surface border-b border-border px-4 md:px-6 h-16 flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -93,7 +93,7 @@
     // 🔗 1. 구글 시트 연동 설정
     // ==========================================
     // ★ 아래 큰따옴표("") 사이에 본인의 웹 앱 URL을 붙여넣으세요.
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbye7Bm2VhsRfTiXAjN7iOZwe0AobJOOxkQrX-Z6GxUTkWAGvDO7GcNKebntN8t3cDi7SA/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzyc67T4JprlPGqG3NPGHpe-f150TI59rfLss5CIhwOoZHW42ni6gmXpxIJVQhQbCNv3A/exec"; 
 
     let currentYear = 2026;
     let currentMonth = 5;
@@ -302,7 +302,7 @@
     }
 
     function toggleDarkMode() {
-        document.body.classList.toggle('dark');
+    document.documentElement.classList.toggle('dark');
     }
 
     // 초기 달력 렌더링
