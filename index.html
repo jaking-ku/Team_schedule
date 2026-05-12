@@ -72,6 +72,14 @@
             <span class="material-symbols-outlined text-[18px]">add</span> 라인 추가
         </button>
     </div>
+    <div class="flex items-center gap-2">
+    <button class="bg-surface border border-border text-text-main text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 hover:bg-background transition-all" onclick="loadEventsFromSheet()">
+        <span class="material-symbols-outlined text-[18px]">sync</span> 동기화
+    </button>
+    <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors" onclick="addNewLine()">
+        <span class="material-symbols-outlined text-[18px]">add</span> 라인 추가
+    </button>
+</div>
 </header>
 
 <main class="flex-1 p-4 md:p-8 flex flex-col max-w-[1400px] mx-auto w-full">
@@ -313,6 +321,12 @@
 
     // 초기화
     generateCalendar();
+    // 💡 1분(60000ms)마다 배경에서 시트 데이터를 다시 읽어옵니다.
+setInterval(() => {
+    console.log("실시간 데이터 동기화 중...");
+    loadEventsFromSheet();
+}, 60000); // 1분 단위가 적당합니다. 너무 빠르면 구글 서버에서 거부할 수 있습니다.
+    
 </script>
 </body>
 </html>
