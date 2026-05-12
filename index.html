@@ -33,7 +33,6 @@
         body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); }
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
         
-        /* 캘린더 그리드 스타일 */
         .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(130px, 1fr)); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .grid-cell { background-color: var(--bg-surface); min-height: 100px; padding: 8px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: background-color 0.2s; }
         .grid-cell:hover { background-color: var(--bg-body); }
@@ -41,17 +40,14 @@
         
         .empty-cell { background-color: var(--border-color); opacity: 0.3; cursor: not-allowed; }
 
-        /* 일정 카드 스타일 */
         .event-card { position: relative; background-color: var(--bg-surface); border-left: 4px solid #b7000c; padding: 8px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .event-card:active { cursor: grabbing; opacity: 0.8; }
         .event-card.vacation { border-left-color: #3b82f6; background-color: rgba(59, 130, 246, 0.05); }
         
-        /* 삭제 버튼 */
         .delete-btn { position: absolute; top: 4px; right: 4px; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.2s; }
         .event-card:hover .delete-btn { opacity: 1; }
         .delete-btn:hover { color: #b7000c; }
         
-        /* 스크롤바 숨김 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -89,22 +85,22 @@
         </span>
     </div>
 
-    <div id="calendar-container" class="space-y-12">
-        </div>
+    <div id="calendar-container" class="space-y-12"></div>
 </main>
 
 <script>
     // ==========================================
     // 🔗 1. 구글 시트 연동 설정
     // ==========================================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbye7Bm2VhsRfTiXAjN7iOZwe0AobJOOxkQrX-Z6GxUTkWAGvDO7GcNKebntN8t3cDi7SA/exec"; // ★ 여기에 URL 입력
+    // ★ 아래 큰따옴표("") 사이에 본인의 웹 앱 URL을 붙여넣으세요.
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbye7Bm2VhsRfTiXAjN7iOZwe0AobJOOxkQrX-Z6GxUTkWAGvDO7GcNKebntN8t3cDi7SA/exec"; 
 
     let currentYear = 2026;
     let currentMonth = 5;
-    let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
+    let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D"];
 
-    // 구글 시트 통신용 코어 함수
     async function sendToSheet(payload) {
+        if (!SCRIPT_URL.startsWith("https")) return;
         try {
             await fetch(SCRIPT_URL, {
                 method: "POST",
@@ -125,8 +121,8 @@
         
         document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
         
-        // 동기화 뱃지 초기화
-        document.querySelector('.cloud-sync-badge').innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> DB 로딩중...';
+        const badge = document.querySelector('.cloud-sync-badge');
+        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> DB 로딩중...';
 
         const firstDay = new Date(currentYear, currentMonth - 1, 1);
         const lastDay = new Date(currentYear, currentMonth, 0);
@@ -164,7 +160,6 @@
             week.forEach((day, idx) => {
                 let colorClass = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
                 if (day) {
-                    const formattedDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     grid.innerHTML += `<div class="grid-header ${colorClass}">${dayNames[idx]} (${currentMonth}/${day})</div>`;
                 } else {
                     grid.innerHTML += `<div class="grid-header empty-cell"></div>`;
@@ -188,7 +183,6 @@
             container.appendChild(gridWrapper);
         });
 
-        // 드래그 앤 드롭 및 DB 업데이트 연결
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', 
@@ -202,7 +196,6 @@
                     if(isVacation) item.classList.add('vacation');
                     else item.classList.remove('vacation');
 
-                    // 💡 드래그 완료 시 구글 시트에 업데이트 요청
                     sendToSheet({
                         action: 'update',
                         id: item.dataset.id,
@@ -214,11 +207,10 @@
             });
         });
 
-        // 껍데기 렌더링 후 DB에서 데이터 불러오기
-        if(SCRIPT_URL !== "여기에_복사하신_웹앱_URL을_붙여넣으세요") {
+        if(SCRIPT_URL.startsWith("https")) {
             loadEventsFromSheet();
         } else {
-            document.querySelector('.cloud-sync-badge').innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">error</span> 연동 URL 없음';
+            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">error</span> 연동 URL 없음';
         }
     }
 
@@ -226,6 +218,9 @@
     // ☁️ 3. 데이터 로딩 및 동기화
     // ==========================================
     async function loadEventsFromSheet() {
+        const badge = document.querySelector('.cloud-sync-badge');
+        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중...';
+
         try {
             const res = await fetch(SCRIPT_URL, {
                 method: "POST",
@@ -234,14 +229,14 @@
             });
             const events = await res.json();
 
-            // 이전 데이터 지우기 (중복 렌더링 방지)
+            // 기존 카드 싹 지우기 (중복 방지)
             document.querySelectorAll('.event-card').forEach(card => card.remove());
 
             events.forEach(ev => {
                 const targetCell = document.querySelector(`[data-date="${ev.date}"][data-line="${ev.line}"]`);
                 if (targetCell) {
                     const card = document.createElement('div');
-                    card.className = `event-card ${ev.isVacation === true || ev.isVacation === 'true' ? 'vacation' : ''}`;
+                    card.className = `event-card ${String(ev.isVacation) === 'true' ? 'vacation' : ''}`;
                     card.dataset.id = ev.id;
                     card.innerHTML = `
                         ${ev.title}
@@ -251,21 +246,20 @@
                 }
             });
             
-            // 연결 성공 뱃지 업데이트
-            document.querySelector('.cloud-sync-badge').innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> Google Sheet 동기화 됨';
+            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> Google Sheet 동기화 됨';
         } catch (e) {
             console.error(e);
-            document.querySelector('.cloud-sync-badge').innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">cloud_off</span> 연결 실패';
+            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-500">cloud_off</span> 연결 실패';
         }
     }
 
     // ==========================================
-    // 📝 4. 기능 함수 (추가/삭제/조작)
+    // 📝 4. 기능 함수
     // ==========================================
     function addEvent(event, cell) {
         if(event.target !== cell) return;
 
-        const title = prompt(`${cell.dataset.date} / [${cell.dataset.line}]\n추가할 작업자나 일정을 입력하세요:`);
+        const title = prompt(`${cell.dataset.date} / [${cell.dataset.line}]\n내용을 입력하세요:`);
         if(!title) return;
 
         const newId = 'EVT_' + Date.now(); 
@@ -280,24 +274,21 @@
         `;
         cell.appendChild(card);
 
-        // 구글 시트에 저장
         sendToSheet({ action: 'add', id: newId, date: cell.dataset.date, line: cell.dataset.line, title: title, isVacation: isVac });
     }
 
     function deleteEvent(event, btn) {
         event.stopPropagation(); 
-        if(confirm('이 일정을 삭제하시겠습니까?')) {
+        if(confirm('삭제하시겠습니까?')) {
             const card = btn.parentElement;
             const targetId = card.dataset.id;
             card.remove();
-
-            // 구글 시트에서 삭제
             sendToSheet({ action: 'delete', id: targetId });
         }
     }
 
     function addNewLine() {
-        const name = prompt("새로운 라인 명칭을 입력하세요 (예: P3F):");
+        const name = prompt("새 라인 명칭:");
         if(!name) return;
         lines.push(name.trim());
         generateCalendar(); 
@@ -314,15 +305,19 @@
         document.body.classList.toggle('dark');
     }
 
+    // 초기 달력 렌더링
     generateCalendar();
 
-    // 💡 새로 추가된 1분(60000ms) 자동 동기화 로직
+    // ==========================================
+    // ⏰ 5. 1분 자동 동기화 로직
+    // ==========================================
     setInterval(() => {
         if (SCRIPT_URL.startsWith("https")) {
             console.log("백그라운드 실시간 동기화 실행 중...");
             loadEventsFromSheet();
         }
-    }, 60000); 
+    }, 60000); // 60000ms = 1분
+
 </script>
 </body>
 </html>
