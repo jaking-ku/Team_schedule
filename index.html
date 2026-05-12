@@ -92,8 +92,7 @@
     // ==========================================
     // 🔗 1. 구글 시트 연동 설정
     // ==========================================
-    // ★ 아래 큰따옴표("") 사이에 본인의 웹 앱 URL을 붙여넣으세요.
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbye7Bm2VhsRfTiXAjN7iOZwe0AobJOOxkQrX-Z6GxUTkWAGvDO7GcNKebntN8t3cDi7SA/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxL31G_BjTBSntFg6GO9VC5T5zBg5gJmG4LFBg8yA6lJJRfM64INFwcgh1M3UJJT4uDeQ/exec"; 
 
     let currentYear = 2026;
     let currentMonth = 5;
@@ -102,8 +101,11 @@
     async function sendToSheet(payload) {
         if (!SCRIPT_URL.startsWith("https")) return;
         try {
-            await fetch(SCRIPT_URL, {
+            // 💡 [수정됨] 캐시 무력화 URL 적용 및 no-store 강제
+            const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
+            await fetch(noCacheUrl, {
                 method: "POST",
+                cache: "no-store", 
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify(payload)
             });
@@ -222,8 +224,11 @@
         badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중...';
 
         try {
-            const res = await fetch(SCRIPT_URL, {
+            // 💡 [수정됨] 캐시 무력화 URL 적용 및 no-store 강제
+            const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
+            const res = await fetch(noCacheUrl, {
                 method: "POST",
+                cache: "no-store",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify({ action: 'read' })
             });
@@ -302,7 +307,7 @@
     }
 
     function toggleDarkMode() {
-    document.documentElement.classList.toggle('dark');
+        document.documentElement.classList.toggle('dark');
     }
 
     // 초기 달력 렌더링
