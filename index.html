@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>HITACHI Team Scheduler</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -27,12 +27,21 @@
         }
     </script>
     <style>
-        :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; }
+        :root { 
+            --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; 
+            --calendar-zoom: 1; /* 💡 줌 컨트롤을 위한 CSS 변수 추가 */
+        }
         html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
         body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
         
-        /* 💡 8열 -> 9열로 변경 (구분 + 7일 + 비고) */
-        .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        /* 💡 달력 전체에 줌(Zoom) 변수 적용 */
+        .grid-schedule { 
+            display: grid; 
+            grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); 
+            gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; 
+            zoom: var(--calendar-zoom); /* 브라우저 자체 줌 스케일링 기능 */
+        }
+        
         .grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
         .grid-cell:hover { background-color: var(--bg-body); }
         .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
@@ -40,7 +49,6 @@
         .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
         html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
 
-        /* 비고란 특별 배경색 */
         .is-note { background-color: rgba(0,0,0,0.02); }
         html.dark .is-note { background-color: rgba(255,255,255,0.02); }
 
@@ -62,11 +70,11 @@
 <header class="sticky top-0 z-40 bg-surface border-b border-border px-4 md:px-6 h-16 flex items-center justify-between">
     <div class="flex items-center gap-3">
         <span class="text-2xl font-black tracking-tighter text-primary">HITACHI</span>
-        <div class="h-5 w-[1px] bg-border mx-1"></div>
+        <div class="h-5 w-[1px] bg-border mx-1 hidden md:block"></div>
         <span class="text-sm font-bold text-text-main hidden md:block">Team Schedule</span>
     </div>
     <div class="flex items-center gap-2">
-        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
+        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 hidden sm:flex" onclick="loadEventsFromSheet()">
             <span class="material-symbols-outlined text-[18px]">sync</span> 동기화
         </button>
         <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
@@ -79,16 +87,31 @@
 </header>
 
 <main class="flex-1 p-4 md:p-8 flex flex-col max-w-[1500px] mx-auto w-full">
-    <div class="flex items-center justify-between mb-8">
-        <h2 class="text-2xl md:text-3xl font-black flex items-center gap-4">
-            <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[32px]">chevron_left</span></button>
-            <span id="month-title"></span>
-            <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[32px]">chevron_right</span></button>
-        </h2>
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+        
+        <div class="flex items-center gap-4">
+            <h2 class="text-xl md:text-3xl font-black flex items-center gap-2 md:gap-4">
+                <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[28px] md:text-[32px]">chevron_left</span></button>
+                <span id="month-title"></span>
+                <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[28px] md:text-[32px]">chevron_right</span></button>
+            </h2>
+
+            <div class="flex items-center bg-surface border border-border rounded-lg shadow-sm">
+                <button onclick="changeZoom(-0.1)" class="px-2 py-1 text-text-muted hover:text-primary active:bg-gray-100 dark:active:bg-gray-800 transition-colors rounded-l-lg" title="축소">
+                    <span class="material-symbols-outlined text-[20px]">zoom_out</span>
+                </button>
+                <span id="zoom-display" class="text-[11px] font-bold text-text-main w-10 text-center">100%</span>
+                <button onclick="changeZoom(0.1)" class="px-2 py-1 text-text-muted hover:text-primary active:bg-gray-100 dark:active:bg-gray-800 transition-colors rounded-r-lg" title="확대">
+                    <span class="material-symbols-outlined text-[20px]">zoom_in</span>
+                </button>
+            </div>
+        </div>
+
         <span class="cloud-sync-badge text-xs text-text-muted bg-surface px-3 py-1.5 border border-border rounded flex items-center gap-1 font-bold">
             <span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 대기 중
         </span>
     </div>
+
     <div id="calendar-container" class="space-y-12"></div>
 </main>
 
@@ -142,7 +165,6 @@
                 <span class="material-symbols-outlined">info</span>
                 선택하신 주차의 [비고] 란에 작업이 등록됩니다.
             </div>
-            
             <input type="hidden" id="modal-note-id"> 
         </div>
 
@@ -159,13 +181,25 @@
     // ==========================================
     // 🔗 1. 구글 시트 연동 설정
     // ==========================================
-    // ★ 여기에 웹앱 URL을 입력하세요.
+    // ★ 여기에 웹앱 URL을 입력하세요!
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcswIiPOAbvCUtYK8kw0R3I7-oyGtIHxsebMQMyVSQ6quUglhoYRLXbvo-cdcaeL_vuw/exec"; 
 
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
     let currentMonth = todayObj.getMonth() + 1;
     let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
+
+    // 💡 줌 컨트롤 함수 추가
+    let currentZoom = 1.0;
+    function changeZoom(delta) {
+        currentZoom += delta;
+        if (currentZoom < 0.4) currentZoom = 0.4; // 최대 축소 40% (아이폰에서 한주 전체가 다 보입니다)
+        if (currentZoom > 1.2) currentZoom = 1.2; // 최대 확대 120%
+        
+        // CSS 변수로 달력 크기 조절
+        document.documentElement.style.setProperty('--calendar-zoom', currentZoom);
+        document.getElementById('zoom-display').innerText = Math.round(currentZoom * 100) + '%';
+    }
 
     async function sendToSheet(payload) {
         if (!SCRIPT_URL.startsWith("https")) return;
@@ -180,7 +214,7 @@
     }
 
     // ==========================================
-    // 📅 2. 캘린더 UI 렌더링 (비고란 추가)
+    // 📅 2. 캘린더 UI 렌더링 
     // ==========================================
     function generateCalendar() {
         const container = document.getElementById('calendar-container');
@@ -215,9 +249,8 @@
             const gridWrapper = document.createElement('div');
             gridWrapper.className = 'overflow-x-auto no-scrollbar shadow-sm rounded-lg mb-8';
             const grid = document.createElement('div');
-            grid.className = 'grid-schedule min-w-[1100px]'; // 넓이 확장
+            grid.className = 'grid-schedule min-w-[1100px]'; 
             
-            // 헤더 렌더링 (비고 추가)
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
             week.forEach((day, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
@@ -225,7 +258,6 @@
             });
             grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고 (메모)</div>`;
 
-            // 각 라인별 셀 렌더링
             lines.forEach(line => {
                 grid.innerHTML += `<div class="grid-header bg-surface text-sm">${line}</div>`;
                 week.forEach(day => {
@@ -237,7 +269,6 @@
                         grid.innerHTML += `<div class="grid-cell bg-gray-100 dark:bg-gray-800/50 opacity-50 cursor-not-allowed"></div>`;
                     }
                 });
-                // 💡 비고란 셀 추가 (날짜 대신 note-주차번호 로 저장)
                 const noteId = `note-${currentYear}-${currentMonth}-W${wIdx+1}`;
                 grid.innerHTML += `<div class="grid-cell dropzone is-note" data-line="${line}" data-date="${noteId}" onclick="openModal('${noteId}', '${line}')"></div>`;
             });
@@ -245,11 +276,9 @@
             container.appendChild(gridWrapper);
         });
 
-        // 모달 라인 옵션 업데이트
         const lineSelect = document.getElementById('modal-line');
         lineSelect.innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
 
-        // 드래그 앤 드롭 활성화
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', animation: 150, ghostClass: 'opacity-50',
@@ -275,20 +304,17 @@
         const isNote = dateStr.startsWith('note-');
         
         if (isNote) {
-            // 비고란을 클릭한 경우
             document.getElementById('modal-date-wrapper').classList.add('hidden');
             document.getElementById('modal-note-msg').classList.remove('hidden');
             document.getElementById('modal-note-id').value = dateStr;
         } else {
-            // 일반 날짜를 클릭한 경우
             document.getElementById('modal-date-wrapper').classList.remove('hidden');
             document.getElementById('modal-note-msg').classList.add('hidden');
             document.getElementById('modal-note-id').value = '';
             
-            // 클릭한 셀의 날짜가 있으면 세팅, 없으면 오늘 날짜 세팅
             const defaultDate = dateStr || `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
             document.getElementById('modal-start-date').value = defaultDate;
-            document.getElementById('modal-end-date').value = defaultDate; // 기본으로 당일 마감
+            document.getElementById('modal-end-date').value = defaultDate; 
         }
 
         document.getElementById('event-modal').classList.remove('hidden');
@@ -299,7 +325,6 @@
         document.getElementById('event-modal').classList.add('hidden');
     }
 
-    // 모달에서 저장 버튼 클릭 시
     function saveEventFromModal() {
         const title = document.getElementById('modal-title').value.trim();
         if (!title) return alert("작업 이름을 입력해주세요.");
@@ -310,35 +335,29 @@
         const noteId = document.getElementById('modal-note-id').value;
 
         if (noteId) {
-            // 💡 비고란에 저장
             const newId = 'EVT_' + Date.now();
             appendCardToUI(noteId, line, newId, title, isVac, category);
             sendToSheet({ action: 'add', id: newId, date: noteId, line: line, title: title, isVacation: isVac, category: category });
         } else {
-            // 💡 날짜 범위(시작일~마감일)에 저장
             const startStr = document.getElementById('modal-start-date').value;
             const endStr = document.getElementById('modal-end-date').value;
             if (!startStr || !endStr) return alert("시작일과 마감일을 지정해주세요.");
             
             const startD = new Date(startStr);
             const endD = new Date(endStr);
-            
             if(startD > endD) return alert("마감일이 시작일보다 빠를 수 없습니다.");
 
-            // 시작일부터 마감일까지 반복하며 달력에 뿌림
             for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
                 const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                const newId = 'EVT_' + Date.now() + Math.floor(Math.random()*1000); // 고유ID 난수 보강
+                const newId = 'EVT_' + Date.now() + Math.floor(Math.random()*1000); 
                 
                 appendCardToUI(dateStr, line, newId, title, isVac, category);
                 sendToSheet({ action: 'add', id: newId, date: dateStr, line: line, title: title, isVacation: isVac, category: category });
             }
         }
-        
         closeModal();
     }
 
-    // 카드 화면에 그리는 공통 로직
     function appendCardToUI(dateStr, lineStr, id, title, isVac, category) {
         const targetCell = document.querySelector(`[data-date="${dateStr}"][data-line="${lineStr}"]`);
         if (targetCell) {
@@ -375,6 +394,7 @@
     function deleteEvent(e, btn) { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) { sendToSheet({ action: 'delete', id: btn.parentElement.dataset.id }); btn.parentElement.remove(); } }
     function changeMonth(d) { currentMonth += d; if(currentMonth>12){currentMonth=1; currentYear++;} if(currentMonth<1){currentMonth=12; currentYear--;} generateCalendar(); }
     function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
+    function clickToAddEvent() { openModal(); }
 
     generateCalendar();
     setInterval(loadEventsFromSheet, 60000);
