@@ -236,9 +236,16 @@
             card.className = `event-card ${isVac ? 'vacation' : (ev.category || 'cat-normal')}`;
             card.dataset.id = ev.id;
             card.dataset.catClass = ev.category || 'cat-normal';
-            // 수정 모드 연결
+            
             card.onclick = (e) => { e.stopPropagation(); openEditModal(ev.id); };
-            card.innerHTML = `<div class="truncate">${ev.title}</div><div class="text-[9px] opacity-70">${ev.worker || ''}</div><span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>`;
+            
+            // 💡 truncate 삭제, break-words와 whitespace-pre-wrap 적용 (자동 줄바꿈 + 엔터 인식)
+            // 💡 pr-5: 삭제 버튼(X)과 글자가 겹치지 않도록 우측 여백 확보
+            card.innerHTML = `
+                <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${ev.title}</div>
+                <div class="text-[10px] opacity-70 mt-1">${ev.worker || ''}</div>
+                <span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>
+            `;
             target.appendChild(card);
         }
     }
