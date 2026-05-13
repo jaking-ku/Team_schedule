@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=5.0" name="viewport"/>
     <title>HITACHI Team Scheduler</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -23,15 +23,25 @@
         :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; --calendar-zoom: 1; }
         html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
         body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
+        
+        /* PC 전용 그리드 스타일 */
         .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; zoom: var(--calendar-zoom); }
         .grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
         .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
+        
         .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
+        html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
         .is-note { background-color: rgba(0,0,0,0.02); }
+        
         .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
-        .cat-normal { border-left-color: #b7000c; } .cat-pm { border-left-color: #10b981; color: #059669; }     
-        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
+        
+        /* 카테고리별 컬러 매핑 */
+        .cat-normal { border-left-color: #b7000c; } 
+        .cat-pm { border-left-color: #10b981; color: #059669; }     
+        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } 
+        .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
         .vacation { border-left-color: #3b82f6; color: #2563eb; }   
+        
         .delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
         .event-card:hover .delete-btn { opacity: 1; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -41,53 +51,57 @@
 
 <header class="sticky top-0 z-40 bg-surface border-b border-border px-4 md:px-6 h-16 flex items-center justify-between">
     <div class="flex items-center gap-3">
-        <span class="text-2xl font-black tracking-tighter text-primary">HITACHI</span>
+        <span class="text-xl md:text-2xl font-black tracking-tighter text-primary">HITACHI</span>
+        <div class="h-5 w-[1px] bg-border mx-1 hidden md:block"></div>
         <span class="text-sm font-bold text-text-main hidden md:block">Team Schedule</span>
     </div>
-    <div class="flex items-center gap-2">
-        <button class="bg-surface border border-border text-text-main hover:text-blue-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="downloadCSV()">
-            <span class="material-symbols-outlined text-[18px]">download</span> DB 다운로드
+    <div class="flex items-center gap-1 md:gap-2">
+        <button class="bg-surface border border-border text-text-main hover:text-blue-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1 hidden sm:flex" onclick="downloadCSV()">
+            <span class="material-symbols-outlined text-[18px]">download</span> <span class="hidden md:inline">다운로드</span>
         </button>
-        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
-            <span class="material-symbols-outlined text-[18px]">sync</span> 동기화
+        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
+            <span class="material-symbols-outlined text-[18px]">sync</span> <span class="hidden md:inline">동기화</span>
         </button>
-        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
-            <span class="material-symbols-outlined text-[18px]">add</span> 일정 추가
+        <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
+            <span class="material-symbols-outlined text-[18px]">add</span> <span class="hidden md:inline">일정 추가</span>
         </button>
-        <button class="bg-surface border border-border text-text-main text-xs font-bold px-3 py-1.5 rounded" onclick="toggleDarkMode()">
+        <button class="bg-surface border border-border text-text-main text-xs font-bold px-2 md:px-3 py-1.5 rounded" onclick="toggleDarkMode()">
             <span class="material-symbols-outlined text-[18px]">dark_mode</span>
         </button>
     </div>
 </header>
 
-<main class="flex-1 p-4 md:p-8 flex flex-col max-w-[1500px] mx-auto w-full">
-    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-        <div class="flex items-center gap-4">
+<main class="flex-1 p-2 md:p-8 flex flex-col max-w-[1500px] mx-auto w-full">
+    <div class="flex flex-col md:flex-row items-center justify-between mb-4 md:mb-8 gap-4">
+        <div class="flex items-center justify-between w-full md:w-auto gap-4">
             <h2 class="text-xl md:text-3xl font-black flex items-center gap-2 md:gap-4">
-                <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[28px]">chevron_left</span></button>
-                <span id="month-title"></span>
-                <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[28px]">chevron_right</span></button>
+                <button onclick="changeMonth(-1)" class="p-1"><span class="material-symbols-outlined text-[28px]">chevron_left</span></button>
+                <span id="month-title" class="min-w-[100px] text-center"></span>
+                <button onclick="changeMonth(1)" class="p-1"><span class="material-symbols-outlined text-[28px]">chevron_right</span></button>
             </h2>
-            <div class="flex items-center bg-surface border border-border rounded-lg">
+            <div class="hidden md:flex items-center bg-surface border border-border rounded-lg">
                 <button onclick="changeZoom(-0.1)" class="px-2 py-1 text-text-muted hover:text-primary"><span class="material-symbols-outlined text-[20px]">zoom_out</span></button>
                 <span id="zoom-display" class="text-[11px] font-bold w-10 text-center">100%</span>
                 <button onclick="changeZoom(0.1)" class="px-2 py-1 text-text-muted hover:text-primary"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
             </div>
         </div>
-        <span class="cloud-sync-badge text-xs text-text-muted bg-surface px-3 py-1.5 border border-border rounded flex items-center gap-1 font-bold">
-            <span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 대기 중
+        <span class="cloud-sync-badge text-[10px] md:text-xs text-text-muted bg-surface px-2 md:px-3 py-1.5 border border-border rounded flex items-center gap-1 font-bold">
+            <span class="material-symbols-outlined text-[14px] md:text-[16px] animate-spin">sync</span> 대기 중
         </span>
     </div>
-    <div id="calendar-container" class="space-y-12"></div>
+
+    <div id="calendar-pc-container" class="hidden md:block space-y-12"></div>
+
+    <div id="calendar-mobile-container" class="block md:hidden"></div>
 </main>
 
-<div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+<div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-border">
         <div class="px-6 py-4 border-b border-border flex justify-between items-center">
             <h3 id="modal-header-title" class="text-lg font-bold flex items-center gap-2 text-text-main"><span class="material-symbols-outlined text-primary">work</span> 일정 상세</h3>
             <button onclick="closeModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
         </div>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
             <input type="hidden" id="modal-event-id">
             <div>
                 <label class="block text-xs font-bold text-text-muted mb-1">작업 이름</label>
@@ -116,7 +130,7 @@
                 <div><label class="block text-xs font-bold text-text-muted mb-1">시작일</label><input type="date" id="modal-start-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
                 <div><label class="block text-xs font-bold text-text-muted mb-1">마감일</label><input type="date" id="modal-end-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
             </div>
-            <div id="modal-note-msg" class="hidden bg-blue-50 text-blue-600 p-3 rounded-lg text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined">info</span>비고 란에 등록됩니다.</div>
+            <div id="modal-note-msg" class="hidden bg-blue-50 text-blue-600 p-3 rounded-lg text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined">info</span>해당 주차 비고 란에 등록됩니다.</div>
             <input type="hidden" id="modal-note-id">
         </div>
         <div class="px-6 py-4 border-t border-border bg-background/50 flex justify-end gap-2">
@@ -126,8 +140,28 @@
     </div>
 </div>
 
+<div id="mobile-day-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-end md:items-center justify-center backdrop-blur-sm">
+    <div class="bg-surface w-full md:max-w-md rounded-t-2xl md:rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
+        <div class="px-5 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 id="mobile-day-title" class="text-lg font-bold text-text-main">일정 목록</h3>
+            <button onclick="closeMobileDayView()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div id="mobile-day-events" class="p-4 overflow-y-auto space-y-2 flex-1 min-h-[200px]">
+            </div>
+        <div class="p-4 border-t border-border bg-background/50">
+            <button id="mobile-add-btn" class="w-full py-3 text-sm font-bold bg-primary text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">add</span> 새 일정 추가
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
+    // ==========================================
+    // 🔗 1. 구글 시트 URL 입력
+    // ==========================================
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLziNOU1h0ELgZqUUyKLiTawlkYdoT0hG1uKqAgC6R85BpN-6pcOcpTaSz6WvrLaOD9g/exec"; 
+
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
     let currentMonth = todayObj.getMonth() + 1;
@@ -150,10 +184,13 @@
         } catch (e) { console.error(e); }
     }
 
-    function generateCalendar() {
-        const container = document.getElementById('calendar-container');
+    // ==========================================
+    // 💻 2-1. PC 버전 렌더링 (기존 가로형)
+    // ==========================================
+    function generateCalendarPC() {
+        const container = document.getElementById('calendar-pc-container');
         container.innerHTML = '';
-        document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
+        
         const firstDay = new Date(currentYear, currentMonth - 1, 1);
         const lastDay = new Date(currentYear, currentMonth, 0);
         let startIdx = (firstDay.getDay() + 6) % 7;
@@ -176,16 +213,19 @@
             weekLabel.className = 'text-lg font-bold mb-3 border-l-4 border-primary pl-3 mt-6';
             weekLabel.innerText = `${currentMonth}월 ${wIdx + 1}주차`;
             container.appendChild(weekLabel);
+            
             const gridWrapper = document.createElement('div');
             gridWrapper.className = 'overflow-x-auto no-scrollbar rounded-lg mb-8 shadow-sm';
             const grid = document.createElement('div');
             grid.className = 'grid-schedule min-w-[1100px]';
+            
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
             week.forEach((day, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
                 grid.innerHTML += `<div class="grid-header ${color}">${day ? dayNames[idx]+' ('+day+'일)' : ''}</div>`;
             });
             grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`;
+            
             lines.forEach(line => {
                 grid.innerHTML += `<div class="grid-header bg-surface text-sm">${line}</div>`;
                 week.forEach(day => {
@@ -200,7 +240,10 @@
             gridWrapper.appendChild(grid);
             container.appendChild(gridWrapper);
         });
+        
         document.getElementById('modal-line').innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
+        
+        // PC용 드래그 앤 드롭
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', animation: 150, ghostClass: 'opacity-50',
@@ -212,24 +255,107 @@
                 }
             });
         });
-        loadEventsFromSheet();
     }
 
+    // ==========================================
+    // 📱 2-2. 모바일 버전 렌더링 (구글 캘린더형)
+    // ==========================================
+    function generateCalendarMobile() {
+        const container = document.getElementById('calendar-mobile-container');
+        container.innerHTML = '';
+        
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-7 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 shadow-sm';
+        
+        // 요일 헤더 (일~토)
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        days.forEach((d, i) => {
+            const color = i === 0 ? 'text-red-500' : (i === 6 ? 'text-blue-500' : 'text-text-muted');
+            grid.innerHTML += `<div class="bg-background text-center py-2 text-[11px] font-bold ${color}">${d}</div>`;
+        });
+
+        const firstDayOffset = new Date(currentYear, currentMonth - 1, 1).getDay(); // 0(일) ~ 6(토)
+        const totalDays = new Date(currentYear, currentMonth, 0).getDate();
+        const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+
+        // 빈 칸 채우기
+        for (let i = 0; i < firstDayOffset; i++) {
+            grid.innerHTML += `<div class="bg-gray-50 dark:bg-gray-800/30 min-h-[70px]"></div>`;
+        }
+
+        // 날짜 채우기
+        for (let day = 1; day <= totalDays; day++) {
+            const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const dayOfWeek = new Date(currentYear, currentMonth - 1, day).getDay();
+            const dateColor = dayOfWeek === 0 ? 'text-red-500' : (dayOfWeek === 6 ? 'text-blue-500' : 'text-text-main');
+            const isToday = dateStr === todayStr ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-surface';
+            
+            // 해당 날짜의 이벤트 필터링
+            const dayEvents = cachedEvents.filter(ev => ev.date === dateStr);
+            
+            // 모바일 캘린더 내 작은 이벤트 바 렌더링 (최대 3개)
+            let eventsHtml = dayEvents.slice(0, 3).map(ev => {
+                const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
+                const catBg = isVac ? 'bg-blue-500' : 
+                             (ev.category === 'cat-pm' ? 'bg-emerald-500' : 
+                             (ev.category === 'cat-urgent' ? 'bg-amber-500' : 
+                             (ev.category === 'cat-setup' ? 'bg-purple-500' : 'bg-red-600')));
+                return `<div class="text-[9px] text-white truncate px-1 rounded-[2px] mt-[2px] ${catBg}">${ev.title}</div>`;
+            }).join('');
+
+            if (dayEvents.length > 3) {
+                eventsHtml += `<div class="text-[9px] font-bold text-text-muted text-center mt-[2px]">+${dayEvents.length - 3}건</div>`;
+            }
+
+            const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${day}</span>` : `<span>${day}</span>`;
+
+            grid.innerHTML += `
+                <div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer active:bg-gray-100 dark:active:bg-gray-800" onclick="openMobileDayView('${dateStr}')">
+                    <div class="text-[11px] font-bold ${dateColor} mb-1 flex justify-center">${todayCircle}</div>
+                    <div class="flex-1 flex flex-col gap-[1px]">
+                        ${eventsHtml}
+                    </div>
+                </div>
+            `;
+        }
+        container.appendChild(grid);
+
+        // 월간 비고(메모) 확인 버튼 추가
+        const notes = cachedEvents.filter(ev => ev.date.startsWith(`note-${currentYear}-${currentMonth}`));
+        const noteBtn = document.createElement('button');
+        noteBtn.className = 'mt-4 w-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-text-main py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors border border-border';
+        noteBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">sticky_note_2</span> 이번 달 비고/미정 일정 (${notes.length}건)`;
+        noteBtn.onclick = () => openMobileDayView(`note-${currentYear}-${currentMonth}-W1`, true);
+        container.appendChild(noteBtn);
+    }
+
+    // ==========================================
+    // ☁️ 3. 데이터 로딩 및 동기화
+    // ==========================================
     async function loadEventsFromSheet() {
         const badge = document.querySelector('.cloud-sync-badge');
         badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중';
+        
+        document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
+        
         try {
             const url = SCRIPT_URL + "?t=" + new Date().getTime();
             const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
             cachedEvents = await res.json();
-            document.querySelectorAll('.event-card').forEach(c => c.remove());
-            cachedEvents.forEach(ev => appendCardToUI(ev));
+            
+            // 양쪽 뷰 모두 업데이트
+            generateCalendarPC();
+            generateCalendarMobile();
+            
+            // PC 뷰에 카드 꽂기
+            cachedEvents.forEach(ev => appendCardToPC(ev));
+            
             badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
         } catch (e) { badge.innerHTML = '연결 실패'; }
     }
 
-    function appendCardToUI(ev) {
-        const target = document.querySelector(`[data-date="${ev.date}"][data-line="${ev.line}"]`);
+    function appendCardToPC(ev) {
+        const target = document.querySelector(`#calendar-pc-container [data-date="${ev.date}"][data-line="${ev.line}"]`);
         if (target) {
             const card = document.createElement('div');
             const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
@@ -238,9 +364,6 @@
             card.dataset.catClass = ev.category || 'cat-normal';
             
             card.onclick = (e) => { e.stopPropagation(); openEditModal(ev.id); };
-            
-            // 💡 truncate 삭제, break-words와 whitespace-pre-wrap 적용 (자동 줄바꿈 + 엔터 인식)
-            // 💡 pr-5: 삭제 버튼(X)과 글자가 겹치지 않도록 우측 여백 확보
             card.innerHTML = `
                 <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${ev.title}</div>
                 <div class="text-[10px] opacity-70 mt-1">${ev.worker || ''}</div>
@@ -250,12 +373,78 @@
         }
     }
 
+    // ==========================================
+    // 📱 4. 모바일 상세 뷰 제어 로직
+    // ==========================================
+    function openMobileDayView(dateStr, isNotes = false) {
+        const titleEl = document.getElementById('mobile-day-title');
+        const container = document.getElementById('mobile-day-events');
+        const addBtn = document.getElementById('mobile-add-btn');
+        
+        if (isNotes) {
+            titleEl.innerText = `${currentMonth}월 미정/비고 일정`;
+            addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
+        } else {
+            const d = new Date(dateStr);
+            titleEl.innerText = `${d.getMonth()+1}월 ${d.getDate()}일 일정`;
+            addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
+        }
+
+        container.innerHTML = '';
+        
+        // 날짜에 맞는 이벤트 추출 (비고 보기일 경우 해당 달의 모든 노트 추출)
+        let dayEvents = [];
+        if(isNotes) {
+            dayEvents = cachedEvents.filter(ev => ev.date.startsWith(`note-${currentYear}-${currentMonth}`));
+        } else {
+            dayEvents = cachedEvents.filter(ev => ev.date === dateStr);
+        }
+
+        if(dayEvents.length === 0) {
+            container.innerHTML = '<div class="text-center text-text-muted py-10 text-sm">등록된 일정이 없습니다.</div>';
+        } else {
+            dayEvents.forEach(ev => {
+                const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
+                const catBorder = isVac ? 'border-blue-500 bg-blue-50/50' :
+                    (ev.category === 'cat-pm' ? 'border-emerald-500 bg-emerald-50/50' :
+                    (ev.category === 'cat-urgent' ? 'border-amber-500 bg-amber-50/50' :
+                    (ev.category === 'cat-setup' ? 'border-purple-500 bg-purple-50/50' : 'border-red-600 bg-red-50/50')));
+
+                const textColor = isVac ? 'text-blue-700' :
+                    (ev.category === 'cat-pm' ? 'text-emerald-700' :
+                    (ev.category === 'cat-urgent' ? 'text-amber-700' :
+                    (ev.category === 'cat-setup' ? 'text-purple-700' : 'text-red-700')));
+                
+                // 다크모드 대응
+                const darkClasses = "dark:bg-gray-800 dark:text-gray-200";
+
+                container.innerHTML += `
+                    <div class="border-l-4 ${catBorder} ${darkClasses} p-3 mb-2 rounded-r-lg shadow-sm cursor-pointer active:opacity-70 transition-opacity" onclick="closeMobileDayView(); openEditModal('${ev.id}')">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-bold text-text-muted bg-background px-2 py-0.5 rounded border border-border">${ev.line}</span>
+                            ${isNotes ? `<span class="text-[10px] text-text-muted">${ev.date.split('-W')[1]}주차</span>` : ''}
+                        </div>
+                        <div class="text-sm font-bold ${textColor} dark:text-gray-100 mb-1 leading-snug">${ev.title}</div>
+                        ${ev.worker ? `<div class="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">person</span>${ev.worker}</div>` : ''}
+                    </div>
+                `;
+            });
+        }
+        document.getElementById('mobile-day-modal').classList.remove('hidden');
+    }
+
+    function closeMobileDayView() { document.getElementById('mobile-day-modal').classList.add('hidden'); }
+
+    // ==========================================
+    // 📝 5. 공통 모달(입력창) 제어
+    // ==========================================
     function openModal(dateStr = '', lineStr = lines[0]) {
         document.getElementById('modal-event-id').value = '';
         document.getElementById('modal-title').value = '';
         document.getElementById('modal-worker').value = '';
         document.getElementById('modal-line').value = lineStr;
-        document.getElementById('modal-header-title').innerText = "새 일정 추가";
+        document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-primary">work</span> 새 일정 추가`;
+        
         const isNote = dateStr.startsWith('note-');
         if (isNote) {
             document.getElementById('modal-date-wrapper').classList.add('hidden');
@@ -280,7 +469,8 @@
         document.getElementById('modal-worker').value = ev.worker || '';
         document.getElementById('modal-line').value = ev.line;
         document.getElementById('modal-category').value = ev.category || 'cat-normal';
-        document.getElementById('modal-header-title').innerText = "일정 수정";
+        document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-blue-500">edit</span> 일정 수정`;
+        
         if (ev.date.startsWith('note-')) {
             document.getElementById('modal-date-wrapper').classList.add('hidden');
             document.getElementById('modal-note-msg').classList.remove('hidden');
@@ -305,14 +495,12 @@
         const noteId = document.getElementById('modal-note-id').value;
         if (!title) return alert("제목을 입력하세요.");
 
-        if (id) { // 수정
+        if (id) { 
             const date = noteId || document.getElementById('modal-start-date').value;
-            const payload = { action: 'update', id, date, line, title, worker, category, isVacation: line === '🏖️ 휴가자' };
-            await sendToSheet(payload);
-        } else { // 신규
+            await sendToSheet({ action: 'update', id, date, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
+        } else { 
             if (noteId) {
-                const newId = 'EVT_' + Date.now();
-                await sendToSheet({ action: 'add', id: newId, date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
+                await sendToSheet({ action: 'add', id: 'EVT_' + Date.now(), date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
             } else {
                 const startD = new Date(document.getElementById('modal-start-date').value);
                 const endD = new Date(document.getElementById('modal-end-date').value);
@@ -325,27 +513,38 @@
         closeModal(); loadEventsFromSheet();
     }
 
-    function deleteEvent(e, btn) { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) { sendToSheet({ action: 'delete', id: btn.parentElement.dataset.id }); btn.parentElement.remove(); } }
-    function changeMonth(d) { currentMonth += d; if(currentMonth>12){currentMonth=1; currentYear++;} if(currentMonth<1){currentMonth=12; currentYear--;} generateCalendar(); }
+    function deleteEvent(e, btn) { 
+        e.stopPropagation(); 
+        if(confirm('삭제하시겠습니까?')) { 
+            sendToSheet({ action: 'delete', id: btn.parentElement.dataset.id }); 
+            btn.parentElement.remove(); 
+            // 삭제 후 백그라운드 데이터 갱신
+            setTimeout(loadEventsFromSheet, 500);
+        } 
+    }
+
+    function changeMonth(d) { 
+        currentMonth += d; 
+        if(currentMonth>12){currentMonth=1; currentYear++;} 
+        if(currentMonth<1){currentMonth=12; currentYear--;} 
+        loadEventsFromSheet(); 
+    }
+    
     function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
 
     function downloadCSV() {
         if (cachedEvents.length === 0) return alert("다운로드할 데이터가 없습니다.");
         const headers = ["ID", "날짜", "라인", "제목", "휴가여부", "카테고리", "작업자"];
-        const csvContent = [
-            headers.join(","),
-            ...cachedEvents.map(ev => [ev.id, ev.date, ev.line, `"${ev.title}"`, ev.isVacation, ev.category, `"${ev.worker || ''}"`].join(","))
-        ].join("\n");
+        const csvContent = [headers.join(","), ...cachedEvents.map(ev => [ev.id, ev.date, ev.line, `"${ev.title}"`, ev.isVacation, ev.category, `"${ev.worker || ''}"`].join(","))].join("\n");
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.setAttribute("download", `ScheduleDB_${new Date().toLocaleDateString()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
-    generateCalendar();
+    // 초기 실행
+    loadEventsFromSheet();
     setInterval(loadEventsFromSheet, 60000);
 </script>
 </body>
