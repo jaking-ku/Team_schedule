@@ -14,54 +14,26 @@
             darkMode: "class",
             theme: {
                 extend: {
-                    colors: {
-                        "primary": "#b7000c", 
-                        "surface": "var(--bg-surface)",
-                        "background": "var(--bg-body)",
-                        "border": "var(--border-color)",
-                        "text-main": "var(--text-main)",
-                        "text-muted": "var(--text-muted)"
-                    }
+                    colors: { "primary": "#b7000c", "surface": "var(--bg-surface)", "background": "var(--bg-body)", "border": "var(--border-color)", "text-main": "var(--text-main)", "text-muted": "var(--text-muted)" }
                 },
             },
         }
     </script>
     <style>
-        :root { 
-            --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; 
-            --calendar-zoom: 1; /* 💡 줌 컨트롤을 위한 CSS 변수 추가 */
-        }
+        :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; --calendar-zoom: 1; }
         html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
         body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
-        
-        /* 💡 달력 전체에 줌(Zoom) 변수 적용 */
-        .grid-schedule { 
-            display: grid; 
-            grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); 
-            gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; 
-            zoom: var(--calendar-zoom); /* 브라우저 자체 줌 스케일링 기능 */
-        }
-        
+        .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; zoom: var(--calendar-zoom); }
         .grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
-        .grid-cell:hover { background-color: var(--bg-body); }
         .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
-        
         .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
-        html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
-
         .is-note { background-color: rgba(0,0,0,0.02); }
-        html.dark .is-note { background-color: rgba(255,255,255,0.02); }
-
         .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
-        .cat-normal { border-left-color: #b7000c; } 
-        .cat-pm { border-left-color: #10b981; color: #059669; }     
-        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } 
-        .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
+        .cat-normal { border-left-color: #b7000c; } .cat-pm { border-left-color: #10b981; color: #059669; }     
+        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
         .vacation { border-left-color: #3b82f6; color: #2563eb; }   
-
         .delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
         .event-card:hover .delete-btn { opacity: 1; }
-        
         .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -70,11 +42,13 @@
 <header class="sticky top-0 z-40 bg-surface border-b border-border px-4 md:px-6 h-16 flex items-center justify-between">
     <div class="flex items-center gap-3">
         <span class="text-2xl font-black tracking-tighter text-primary">HITACHI</span>
-        <div class="h-5 w-[1px] bg-border mx-1 hidden md:block"></div>
         <span class="text-sm font-bold text-text-main hidden md:block">Team Schedule</span>
     </div>
     <div class="flex items-center gap-2">
-        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 hidden sm:flex" onclick="loadEventsFromSheet()">
+        <button class="bg-surface border border-border text-text-main hover:text-blue-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="downloadCSV()">
+            <span class="material-symbols-outlined text-[18px]">download</span> DB 다운로드
+        </button>
+        <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
             <span class="material-symbols-outlined text-[18px]">sync</span> 동기화
         </button>
         <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
@@ -88,115 +62,82 @@
 
 <main class="flex-1 p-4 md:p-8 flex flex-col max-w-[1500px] mx-auto w-full">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-        
         <div class="flex items-center gap-4">
             <h2 class="text-xl md:text-3xl font-black flex items-center gap-2 md:gap-4">
-                <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[28px] md:text-[32px]">chevron_left</span></button>
+                <button onclick="changeMonth(-1)"><span class="material-symbols-outlined text-[28px]">chevron_left</span></button>
                 <span id="month-title"></span>
-                <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[28px] md:text-[32px]">chevron_right</span></button>
+                <button onclick="changeMonth(1)"><span class="material-symbols-outlined text-[28px]">chevron_right</span></button>
             </h2>
-
-            <div class="flex items-center bg-surface border border-border rounded-lg shadow-sm">
-                <button onclick="changeZoom(-0.1)" class="px-2 py-1 text-text-muted hover:text-primary active:bg-gray-100 dark:active:bg-gray-800 transition-colors rounded-l-lg" title="축소">
-                    <span class="material-symbols-outlined text-[20px]">zoom_out</span>
-                </button>
-                <span id="zoom-display" class="text-[11px] font-bold text-text-main w-10 text-center">100%</span>
-                <button onclick="changeZoom(0.1)" class="px-2 py-1 text-text-muted hover:text-primary active:bg-gray-100 dark:active:bg-gray-800 transition-colors rounded-r-lg" title="확대">
-                    <span class="material-symbols-outlined text-[20px]">zoom_in</span>
-                </button>
+            <div class="flex items-center bg-surface border border-border rounded-lg">
+                <button onclick="changeZoom(-0.1)" class="px-2 py-1 text-text-muted hover:text-primary"><span class="material-symbols-outlined text-[20px]">zoom_out</span></button>
+                <span id="zoom-display" class="text-[11px] font-bold w-10 text-center">100%</span>
+                <button onclick="changeZoom(0.1)" class="px-2 py-1 text-text-muted hover:text-primary"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
             </div>
         </div>
-
         <span class="cloud-sync-badge text-xs text-text-muted bg-surface px-3 py-1.5 border border-border rounded flex items-center gap-1 font-bold">
             <span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 대기 중
         </span>
     </div>
-
     <div id="calendar-container" class="space-y-12"></div>
 </main>
 
-<div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
-    <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col">
-        <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
-            <h3 class="text-lg font-bold flex items-center gap-2 text-text-main">
-                <span class="material-symbols-outlined text-primary">work</span>
-                새 작업 추가
-            </h3>
-            <button onclick="closeModal()" class="text-text-muted hover:text-red-500 transition-colors">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+<div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-border">
+        <div class="px-6 py-4 border-b border-border flex justify-between items-center">
+            <h3 id="modal-header-title" class="text-lg font-bold flex items-center gap-2 text-text-main"><span class="material-symbols-outlined text-primary">work</span> 일정 상세</h3>
+            <button onclick="closeModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
         </div>
-        
-        <div class="p-6 space-y-5">
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="modal-event-id">
             <div>
-                <label class="block text-xs font-bold text-text-muted mb-1 uppercase">작업 이름</label>
-                <input type="text" id="modal-title" placeholder="예: IS4100 정기 PM" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+                <label class="block text-xs font-bold text-text-muted mb-1">작업 이름</label>
+                <input type="text" id="modal-title" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
             </div>
-            
+            <div>
+                <label class="block text-xs font-bold text-text-muted mb-1">작업자 (쉼표로 구분)</label>
+                <input type="text" id="modal-worker" placeholder="예: 홍길동, 김철수" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+            </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold text-text-muted mb-1 uppercase">라인 선택</label>
-                    <select id="modal-line" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 focus:ring-2 focus:ring-primary outline-none">
-                        </select>
+                    <label class="block text-xs font-bold text-text-muted mb-1">라인</label>
+                    <select id="modal-line" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none"></select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-text-muted mb-1 uppercase">분류 상태</label>
-                    <select id="modal-category" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 focus:ring-2 focus:ring-primary outline-none">
-                        <option value="cat-normal">🔴 일반 작업 (Red)</option>
-                        <option value="cat-pm">🟢 정기 PM (Green)</option>
-                        <option value="cat-urgent">🟠 긴급 수리 (Orange)</option>
+                    <label class="block text-xs font-bold text-text-muted mb-1">분류</label>
+                    <select id="modal-category" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                        <option value="cat-normal">🔴 일반 (Red)</option>
+                        <option value="cat-pm">🟢 PM (Green)</option>
+                        <option value="cat-urgent">🟠 긴급 (Orange)</option>
                         <option value="cat-setup">🟣 Setup (Purple)</option>
                     </select>
                 </div>
             </div>
-
             <div id="modal-date-wrapper" class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold text-text-muted mb-1 uppercase">시작일</label>
-                    <input type="date" id="modal-start-date" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-text-muted mb-1 uppercase">마감일</label>
-                    <input type="date" id="modal-end-date" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 focus:ring-2 focus:ring-primary outline-none">
-                </div>
+                <div><label class="block text-xs font-bold text-text-muted mb-1">시작일</label><input type="date" id="modal-start-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
+                <div><label class="block text-xs font-bold text-text-muted mb-1">마감일</label><input type="date" id="modal-end-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
             </div>
-
-            <div id="modal-note-msg" class="hidden bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 p-3 rounded-lg text-sm font-bold flex items-center gap-2">
-                <span class="material-symbols-outlined">info</span>
-                선택하신 주차의 [비고] 란에 작업이 등록됩니다.
-            </div>
-            <input type="hidden" id="modal-note-id"> 
+            <div id="modal-note-msg" class="hidden bg-blue-50 text-blue-600 p-3 rounded-lg text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined">info</span>비고 란에 등록됩니다.</div>
+            <input type="hidden" id="modal-note-id">
         </div>
-
         <div class="px-6 py-4 border-t border-border bg-background/50 flex justify-end gap-2">
-            <button onclick="closeModal()" class="px-4 py-2 text-sm font-bold text-text-muted hover:bg-border rounded-lg transition-colors">취소</button>
-            <button onclick="saveEventFromModal()" class="px-6 py-2 text-sm font-bold bg-primary hover:bg-primary-hover text-white rounded-lg shadow-md transition-colors flex items-center gap-1">
-                <span class="material-symbols-outlined text-[18px]">check</span> 저장하기
-            </button>
+            <button onclick="closeModal()" class="px-4 py-2 text-sm font-bold text-text-muted">취소</button>
+            <button onclick="saveEventFromModal()" class="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg transition-colors">저장하기</button>
         </div>
     </div>
 </div>
 
 <script>
-    // ==========================================
-    // 🔗 1. 구글 시트 연동 설정
-    // ==========================================
-    // ★ 여기에 웹앱 URL을 입력하세요!
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcswIiPOAbvCUtYK8kw0R3I7-oyGtIHxsebMQMyVSQ6quUglhoYRLXbvo-cdcaeL_vuw/exec"; 
-
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLziNOU1h0ELgZqUUyKLiTawlkYdoT0hG1uKqAgC6R85BpN-6pcOcpTaSz6WvrLaOD9g/exec"; 
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
     let currentMonth = todayObj.getMonth() + 1;
     let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
-
-    // 💡 줌 컨트롤 함수 추가
+    let cachedEvents = [];
     let currentZoom = 1.0;
+
     function changeZoom(delta) {
         currentZoom += delta;
-        if (currentZoom < 0.4) currentZoom = 0.4; // 최대 축소 40% (아이폰에서 한주 전체가 다 보입니다)
-        if (currentZoom > 1.2) currentZoom = 1.2; // 최대 확대 120%
-        
-        // CSS 변수로 달력 크기 조절
+        currentZoom = Math.min(Math.max(currentZoom, 0.4), 1.2);
         document.documentElement.style.setProperty('--calendar-zoom', currentZoom);
         document.getElementById('zoom-display').innerText = Math.round(currentZoom * 100) + '%';
     }
@@ -205,27 +146,18 @@
         if (!SCRIPT_URL.startsWith("https")) return;
         try {
             const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
-            await fetch(noCacheUrl, {
-                method: "POST", cache: "no-store",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            });
+            await fetch(noCacheUrl, { method: "POST", cache: "no-store", body: JSON.stringify(payload) });
         } catch (e) { console.error(e); }
     }
 
-    // ==========================================
-    // 📅 2. 캘린더 UI 렌더링 
-    // ==========================================
     function generateCalendar() {
         const container = document.getElementById('calendar-container');
         container.innerHTML = '';
         document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
-
         const firstDay = new Date(currentYear, currentMonth - 1, 1);
         const lastDay = new Date(currentYear, currentMonth, 0);
         let startIdx = (firstDay.getDay() + 6) % 7;
         let totalDays = lastDay.getDate();
-        
         let weeks = [];
         let currentWeek = new Array(7).fill(null);
         let dayCount = 1;
@@ -236,7 +168,6 @@
             for (let i = 0; i < 7 && dayCount <= totalDays; i++) week[i] = dayCount++;
             weeks.push(week);
         }
-
         const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
         const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
 
@@ -245,29 +176,23 @@
             weekLabel.className = 'text-lg font-bold mb-3 border-l-4 border-primary pl-3 mt-6';
             weekLabel.innerText = `${currentMonth}월 ${wIdx + 1}주차`;
             container.appendChild(weekLabel);
-
             const gridWrapper = document.createElement('div');
-            gridWrapper.className = 'overflow-x-auto no-scrollbar shadow-sm rounded-lg mb-8';
+            gridWrapper.className = 'overflow-x-auto no-scrollbar rounded-lg mb-8 shadow-sm';
             const grid = document.createElement('div');
-            grid.className = 'grid-schedule min-w-[1100px]'; 
-            
+            grid.className = 'grid-schedule min-w-[1100px]';
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
             week.forEach((day, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
                 grid.innerHTML += `<div class="grid-header ${color}">${day ? dayNames[idx]+' ('+day+'일)' : ''}</div>`;
             });
-            grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고 (메모)</div>`;
-
+            grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`;
             lines.forEach(line => {
                 grid.innerHTML += `<div class="grid-header bg-surface text-sm">${line}</div>`;
                 week.forEach(day => {
                     if (day) {
                         const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                        const isToday = dateStr === todayStr ? 'is-today' : '';
-                        grid.innerHTML += `<div class="grid-cell dropzone ${isToday}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
-                    } else {
-                        grid.innerHTML += `<div class="grid-cell bg-gray-100 dark:bg-gray-800/50 opacity-50 cursor-not-allowed"></div>`;
-                    }
+                        grid.innerHTML += `<div class="grid-cell dropzone ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
+                    } else grid.innerHTML += `<div class="grid-cell bg-gray-100 dark:bg-gray-800/50 opacity-50 cursor-not-allowed"></div>`;
                 });
                 const noteId = `note-${currentYear}-${currentMonth}-W${wIdx+1}`;
                 grid.innerHTML += `<div class="grid-cell dropzone is-note" data-line="${line}" data-date="${noteId}" onclick="openModal('${noteId}', '${line}')"></div>`;
@@ -275,10 +200,7 @@
             gridWrapper.appendChild(grid);
             container.appendChild(gridWrapper);
         });
-
-        const lineSelect = document.getElementById('modal-line');
-        lineSelect.innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
-
+        document.getElementById('modal-line').innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', animation: 150, ghostClass: 'opacity-50',
@@ -293,16 +215,41 @@
         loadEventsFromSheet();
     }
 
-    // ==========================================
-    // 🖥️ 3. 노션 스타일 모달 (팝업창) 제어
-    // ==========================================
+    async function loadEventsFromSheet() {
+        const badge = document.querySelector('.cloud-sync-badge');
+        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중';
+        try {
+            const url = SCRIPT_URL + "?t=" + new Date().getTime();
+            const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
+            cachedEvents = await res.json();
+            document.querySelectorAll('.event-card').forEach(c => c.remove());
+            cachedEvents.forEach(ev => appendCardToUI(ev));
+            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
+        } catch (e) { badge.innerHTML = '연결 실패'; }
+    }
+
+    function appendCardToUI(ev) {
+        const target = document.querySelector(`[data-date="${ev.date}"][data-line="${ev.line}"]`);
+        if (target) {
+            const card = document.createElement('div');
+            const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
+            card.className = `event-card ${isVac ? 'vacation' : (ev.category || 'cat-normal')}`;
+            card.dataset.id = ev.id;
+            card.dataset.catClass = ev.category || 'cat-normal';
+            // 수정 모드 연결
+            card.onclick = (e) => { e.stopPropagation(); openEditModal(ev.id); };
+            card.innerHTML = `<div class="truncate">${ev.title}</div><div class="text-[9px] opacity-70">${ev.worker || ''}</div><span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>`;
+            target.appendChild(card);
+        }
+    }
+
     function openModal(dateStr = '', lineStr = lines[0]) {
+        document.getElementById('modal-event-id').value = '';
         document.getElementById('modal-title').value = '';
+        document.getElementById('modal-worker').value = '';
         document.getElementById('modal-line').value = lineStr;
-        document.getElementById('modal-category').value = 'cat-normal';
-        
+        document.getElementById('modal-header-title').innerText = "새 일정 추가";
         const isNote = dateStr.startsWith('note-');
-        
         if (isNote) {
             document.getElementById('modal-date-wrapper').classList.add('hidden');
             document.getElementById('modal-note-msg').classList.remove('hidden');
@@ -311,90 +258,85 @@
             document.getElementById('modal-date-wrapper').classList.remove('hidden');
             document.getElementById('modal-note-msg').classList.add('hidden');
             document.getElementById('modal-note-id').value = '';
-            
-            const defaultDate = dateStr || `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
-            document.getElementById('modal-start-date').value = defaultDate;
-            document.getElementById('modal-end-date').value = defaultDate; 
+            const defDate = dateStr || `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+            document.getElementById('modal-start-date').value = defDate;
+            document.getElementById('modal-end-date').value = defDate;
         }
-
         document.getElementById('event-modal').classList.remove('hidden');
-        setTimeout(() => document.getElementById('modal-title').focus(), 100);
     }
 
-    function closeModal() {
-        document.getElementById('event-modal').classList.add('hidden');
+    function openEditModal(id) {
+        const ev = cachedEvents.find(e => e.id === id);
+        if (!ev) return;
+        document.getElementById('modal-event-id').value = ev.id;
+        document.getElementById('modal-title').value = ev.title;
+        document.getElementById('modal-worker').value = ev.worker || '';
+        document.getElementById('modal-line').value = ev.line;
+        document.getElementById('modal-category').value = ev.category || 'cat-normal';
+        document.getElementById('modal-header-title').innerText = "일정 수정";
+        if (ev.date.startsWith('note-')) {
+            document.getElementById('modal-date-wrapper').classList.add('hidden');
+            document.getElementById('modal-note-msg').classList.remove('hidden');
+            document.getElementById('modal-note-id').value = ev.date;
+        } else {
+            document.getElementById('modal-date-wrapper').classList.remove('hidden');
+            document.getElementById('modal-note-msg').classList.add('hidden');
+            document.getElementById('modal-start-date').value = ev.date;
+            document.getElementById('modal-end-date').value = ev.date;
+        }
+        document.getElementById('event-modal').classList.remove('hidden');
     }
 
-    function saveEventFromModal() {
+    function closeModal() { document.getElementById('event-modal').classList.add('hidden'); }
+
+    async function saveEventFromModal() {
+        const id = document.getElementById('modal-event-id').value;
         const title = document.getElementById('modal-title').value.trim();
-        if (!title) return alert("작업 이름을 입력해주세요.");
-        
+        const worker = document.getElementById('modal-worker').value.trim();
         const line = document.getElementById('modal-line').value;
         const category = document.getElementById('modal-category').value;
-        const isVac = line === '🏖️ 휴가자';
         const noteId = document.getElementById('modal-note-id').value;
+        if (!title) return alert("제목을 입력하세요.");
 
-        if (noteId) {
-            const newId = 'EVT_' + Date.now();
-            appendCardToUI(noteId, line, newId, title, isVac, category);
-            sendToSheet({ action: 'add', id: newId, date: noteId, line: line, title: title, isVacation: isVac, category: category });
-        } else {
-            const startStr = document.getElementById('modal-start-date').value;
-            const endStr = document.getElementById('modal-end-date').value;
-            if (!startStr || !endStr) return alert("시작일과 마감일을 지정해주세요.");
-            
-            const startD = new Date(startStr);
-            const endD = new Date(endStr);
-            if(startD > endD) return alert("마감일이 시작일보다 빠를 수 없습니다.");
-
-            for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-                const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                const newId = 'EVT_' + Date.now() + Math.floor(Math.random()*1000); 
-                
-                appendCardToUI(dateStr, line, newId, title, isVac, category);
-                sendToSheet({ action: 'add', id: newId, date: dateStr, line: line, title: title, isVacation: isVac, category: category });
+        if (id) { // 수정
+            const date = noteId || document.getElementById('modal-start-date').value;
+            const payload = { action: 'update', id, date, line, title, worker, category, isVacation: line === '🏖️ 휴가자' };
+            await sendToSheet(payload);
+        } else { // 신규
+            if (noteId) {
+                const newId = 'EVT_' + Date.now();
+                await sendToSheet({ action: 'add', id: newId, date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
+            } else {
+                const startD = new Date(document.getElementById('modal-start-date').value);
+                const endD = new Date(document.getElementById('modal-end-date').value);
+                for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                    const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    await sendToSheet({ action: 'add', id: 'EVT_'+Date.now()+Math.random(), date: dStr, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
+                }
             }
         }
-        closeModal();
-    }
-
-    function appendCardToUI(dateStr, lineStr, id, title, isVac, category) {
-        const targetCell = document.querySelector(`[data-date="${dateStr}"][data-line="${lineStr}"]`);
-        if (targetCell) {
-            const card = document.createElement('div');
-            const catClass = isVac ? 'vacation' : category;
-            card.className = `event-card ${catClass}`;
-            card.dataset.id = id;
-            card.dataset.catClass = category;
-            card.innerHTML = `${title}<span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>`;
-            targetCell.appendChild(card);
-        }
-    }
-
-    // ==========================================
-    // ☁️ 4. 데이터 로딩 및 동기화
-    // ==========================================
-    async function loadEventsFromSheet() {
-        const badge = document.querySelector('.cloud-sync-badge');
-        badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중';
-        try {
-            const url = SCRIPT_URL + "?t=" + new Date().getTime();
-            const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
-            const events = await res.json();
-            
-            document.querySelectorAll('.event-card').forEach(c => c.remove());
-            
-            events.forEach(ev => {
-                appendCardToUI(ev.date, ev.line, ev.id, ev.title, (ev.isVacation === 'true' || ev.isVacation === true), (ev.category || 'cat-normal'));
-            });
-            badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
-        } catch (e) { badge.innerHTML = '연결 실패'; }
+        closeModal(); loadEventsFromSheet();
     }
 
     function deleteEvent(e, btn) { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) { sendToSheet({ action: 'delete', id: btn.parentElement.dataset.id }); btn.parentElement.remove(); } }
     function changeMonth(d) { currentMonth += d; if(currentMonth>12){currentMonth=1; currentYear++;} if(currentMonth<1){currentMonth=12; currentYear--;} generateCalendar(); }
     function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
-    function clickToAddEvent() { openModal(); }
+
+    function downloadCSV() {
+        if (cachedEvents.length === 0) return alert("다운로드할 데이터가 없습니다.");
+        const headers = ["ID", "날짜", "라인", "제목", "휴가여부", "카테고리", "작업자"];
+        const csvContent = [
+            headers.join(","),
+            ...cachedEvents.map(ev => [ev.id, ev.date, ev.line, `"${ev.title}"`, ev.isVacation, ev.category, `"${ev.worker || ''}"`].join(","))
+        ].join("\n");
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute("download", `ScheduleDB_${new Date().toLocaleDateString()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 
     generateCalendar();
     setInterval(loadEventsFromSheet, 60000);
