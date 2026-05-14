@@ -382,13 +382,17 @@
                 const textColor = isVac ? 'text-blue-700' : (ev.category === 'cat-pm' ? 'text-emerald-700' : (ev.category === 'cat-urgent' ? 'text-amber-700' : (ev.category === 'cat-setup' ? 'text-purple-700' : 'text-red-700')));
                 
                 container.innerHTML += `
-                    <div class="border-l-4 ${catBorder} dark:bg-gray-800 p-3 mb-2 rounded-r-lg shadow-sm cursor-pointer" onclick="closeMobileDayView(); openEditModal('${ev.id}')">
-                        <div class="flex justify-between items-start mb-1">
+                    <div class="relative border-l-4 ${catBorder} dark:bg-gray-800 p-3 mb-2 rounded-r-lg shadow-sm cursor-pointer active:opacity-70" onclick="closeMobileDayView(); openEditModal('${ev.id}')" data-id="${ev.id}">
+                        <div class="flex justify-between items-start mb-1 pr-8">
                             <span class="text-xs font-bold text-text-muted bg-background px-2 py-0.5 rounded border border-border">${ev.line}</span>
                             ${isNotes ? `<span class="text-[10px] text-text-muted">${ev.date.split('-W')[1]}주차</span>` : ''}
                         </div>
-                        <div class="text-sm font-bold ${textColor} dark:text-gray-100 mb-1">${ev.title}</div>
+                        <div class="text-sm font-bold ${textColor} dark:text-gray-100 mb-1 pr-8">${ev.title}</div>
                         ${ev.worker ? `<div class="text-[10px] text-gray-500 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">person</span>${ev.worker}</div>` : ''}
+                        
+                        <button type="button" class="absolute top-2.5 right-2.5 text-text-muted hover:text-red-500 bg-surface/80 border border-border rounded p-1.5 flex items-center justify-center shadow-sm backdrop-blur-sm z-10" onclick="deleteEvent(event, this)">
+                            <span class="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
                     </div>`;
             });
         }
