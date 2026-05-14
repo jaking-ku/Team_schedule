@@ -487,31 +487,44 @@
     function closeModal() { document.getElementById('event-modal').classList.add('hidden'); }
 
     async function saveEventFromModal() {
-        const id = document.getElementById('modal-event-id').value;
-        const title = document.getElementById('modal-title').value.trim();
-        const worker = document.getElementById('modal-worker').value.trim();
-        const line = document.getElementById('modal-line').value;
-        const category = document.getElementById('modal-category').value;
-        const noteId = document.getElementById('modal-note-id').value;
-        if (!title) return alert("제목을 입력하세요.");
+    const id = document.getElementById('modal-event-id').value;
+    const title = document.getElementById('modal-title').value.trim();
+    const worker = document.getElementById('modal-worker').value.trim();
+    const line = document.getElementById('modal-line').value;
+    const category = document.getElementById('modal-category').value;
+    const noteId = document.getElementById('modal-note-id').value;
+    if (!title) return alert("제목을 입력하세요.");
 
-        if (id) { 
-            const date = noteId || document.getElementById('modal-start-date').value;
-            await sendToSheet({ action: 'update', id, date, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
-        } else { 
-            if (noteId) {
-                await sendToSheet({ action: 'add', id: 'EVT_' + Date.now(), date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
-            } else {
-                const startD = new Date(document.getElementById('modal-start-date').value);
-                const endD = new Date(document.getElementById('modal-end-date').value);
-                for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-                    const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                    await sendToSheet({ action: 'add', id: 'EVT_'+Date.now()+Math.random(), date: dStr, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
-                }
+    // 💡 변경점 1: 모달창을 즉시 닫아서 사용자에게 빠른 피드백 제공
+    closeModal();
+
+    if (id) { // 수정 모드
+        const date = noteId || document.getElementById('modal-start-date').value;
+        const payload = { action: 'update', id, date, line, title, worker, category, isVacation: line === '🏖️ 휴가자' };
+        
+        // 💡 변경점 2: await를 제거하여 백그라운드에서 실행 (화면 멈춤 방지)
+        sendToSheet(payload); 
+        // 화면에 즉시 반영 (전체 로딩 대신 현재 카드만 업데이트하는 로직이 좋지만, 일단은 비동기로 처리)
+        setTimeout(loadEventsFromSheet, 500); 
+
+    } else { // 신규 등록 모드
+        if (noteId) {
+            const newId = 'EVT_' + Date.now();
+            sendToSheet({ action: 'add', id: newId, date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
+        } else {
+            const startD = new Date(document.getElementById('modal-start-date').value);
+            const endD = new Date(document.getElementById('modal-end-date').value);
+            
+            // 💡 변경점 3: 루프 안에서 하나씩 기다리지 않고 한꺼번에 요청
+            for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                sendToSheet({ action: 'add', id: 'EVT_'+Date.now()+Math.random(), date: dStr, line, title, worker, category, isVacation: line === '🏖️ 휴가자' });
             }
         }
-        closeModal(); loadEventsFromSheet();
+        // 모든 요청을 던진 후 조금 뒤에 새로고침
+        setTimeout(loadEventsFromSheet, 800);
     }
+}
 
     function deleteEvent(e, btn) { 
         e.stopPropagation(); 
