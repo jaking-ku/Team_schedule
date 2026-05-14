@@ -244,43 +244,18 @@
         document.getElementById('modal-line').innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
         
         // PC용 드래그 앤 드롭
-        // PC용 드래그 앤 드롭 (수정된 버전)
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', animation: 150, ghostClass: 'opacity-50',
                 onEnd: function(evt) {
-                    const item = evt.item; 
-                    const to = evt.to;
+                    const item = evt.item; const to = evt.to;
                     const isVac = to.dataset.line === "🏖️ 휴가자";
-                    const eventId = item.dataset.id;
-
-                    // 💡 1. 잃어버릴 뻔한 기존 데이터(제목, 작업자 등)를 기억 창고에서 찾아옵니다.
-                    let existingEvent = cachedEvents.find(e => e.id === eventId);
-                    
-                    if (existingEvent) {
-                        // 💡 2. 바뀐 날짜와 라인 정보만 새로 갱신합니다.
-                        existingEvent.date = to.dataset.date;
-                        existingEvent.line = to.dataset.line;
-                        existingEvent.isVacation = isVac;
-                        
-                        // 💡 3. UI 클래스 업데이트 (색상 유지)
-                        item.className = `event-card ${isVac ? 'vacation' : (existingEvent.category || 'cat-normal')}`;
-                        
-                        // 💡 4. 누락되는 데이터 없이 통째로 서버에 전송하여 덮어쓰기 방지!
-                        sendToSheet({ 
-                            action: 'update', 
-                            id: existingEvent.id, 
-                            date: existingEvent.date, 
-                            line: existingEvent.line, 
-                            title: existingEvent.title,       // 복구됨!
-                            worker: existingEvent.worker,     // 복구됨!
-                            category: existingEvent.category, // 복구됨!
-                            isVacation: existingEvent.isVacation 
-                        });
-                    }
+                    item.className = `event-card ${isVac ? 'vacation' : item.dataset.catClass}`;
+                    sendToSheet({ action: 'update', id: item.dataset.id, date: to.dataset.date, line: to.dataset.line, isVacation: isVac });
                 }
             });
         });
+    }
 
     // ==========================================
     // 📱 2-2. 모바일 버전 렌더링 (구글 캘린더형)
