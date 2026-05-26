@@ -430,7 +430,19 @@
         document.getElementById('modal-event-id').value = ev.id;
         document.getElementById('modal-title').value = ev.title;
         document.getElementById('modal-worker').value = ev.worker || '';
-        document.getElementById('modal-line').value = ev.line;
+        
+        // 라인 select 옵션을 순회하여 정확히 일치하는 값 선택 (자동으로 휴가자 탭으로 이동되는 버그 수정)
+        const lineSelect = document.getElementById('modal-line');
+        let lineMatched = false;
+        for (let i = 0; i < lineSelect.options.length; i++) {
+            if (lineSelect.options[i].value === ev.line) {
+                lineSelect.selectedIndex = i;
+                lineMatched = true;
+                break;
+            }
+        }
+        if (!lineMatched) lineSelect.value = ev.line;
+        
         document.getElementById('modal-category').value = ev.category || 'cat-normal';
         document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-blue-500">edit</span> 일정 수정`;
         
