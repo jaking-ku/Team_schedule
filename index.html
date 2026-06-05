@@ -233,7 +233,7 @@
             container.appendChild(gridWrapper);
         });
         
-        document.getElementById('modal-line').innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
+        // modal-line 옵션은 initLineSelect()에서 한 번만 초기화 (여기서 하면 수정 중 타이밍 버그 발생)
         
         // 💡 완벽하게 수정된 드래그 앤 드롭
         document.querySelectorAll('.dropzone').forEach(zone => {
@@ -544,7 +544,14 @@
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
+    // modal-line select 옵션을 딱 한 번만 초기화 (generateCalendarPC 재실행 시 리셋되지 않도록)
+    function initLineSelect() {
+        const sel = document.getElementById('modal-line');
+        sel.innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
+    }
+
     // 초기 렌더링 실행
+    initLineSelect();
     loadEventsFromSheet();
     setInterval(loadEventsFromSheet, 60000);
 </script>
