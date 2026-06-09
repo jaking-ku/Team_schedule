@@ -59,6 +59,10 @@
         <button class="bg-surface border border-border text-text-main hover:text-green-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="loadEventsFromSheet()">
             <span class="material-symbols-outlined text-[18px]">sync</span> <span class="hidden md:inline">새로고침</span>
         </button>
+        <button onclick="openUsernameModal()" class="bg-surface border border-border text-text-muted hover:text-primary text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" title="사용자 이름 변경">
+            <span class="material-symbols-outlined text-[18px]">account_circle</span>
+            <span id="header-username" class="hidden md:inline max-w-[80px] truncate"></span>
+        </button>
         <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
             <span class="material-symbols-outlined text-[18px]">add</span> <span class="hidden md:inline">일정 추가</span>
         </button>
@@ -92,6 +96,27 @@
     <div id="calendar-mobile-container" class="block md:hidden"></div>
 </main>
 
+<!-- 최초 방문 이름 입력 팝업 -->
+<div id="username-modal" class="fixed inset-0 bg-black/70 hidden z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-border">
+        <div class="px-6 py-5 border-b border-border">
+            <h3 class="text-lg font-bold flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-primary">badge</span> 사용자 설정
+            </h3>
+            <p class="text-xs text-text-muted mt-1">일정 등록 시 자동으로 이름이 표시됩니다.</p>
+        </div>
+        <div class="p-6">
+            <label class="block text-xs font-bold text-text-muted mb-2">이름을 입력하세요</label>
+            <input type="text" id="username-input" placeholder="예: 홍길동" maxlength="20"
+                class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none focus:border-primary"
+                onkeydown="if(event.key==='Enter') saveUsername()">
+        </div>
+        <div class="px-6 pb-5 flex justify-end">
+            <button onclick="saveUsername()" class="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:opacity-90 transition-opacity">확인</button>
+        </div>
+    </div>
+</div>
+
 <div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-border">
         <div class="px-6 py-4 border-b border-border flex justify-between items-center">
@@ -107,6 +132,10 @@
             <div>
                 <label class="block text-xs font-bold text-text-muted mb-1">작업자 (쉼표로 구분)</label>
                 <input type="text" id="modal-worker" placeholder="예: 홍길동, 김철수" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-text-muted mb-1">등록자</label>
+                <input type="text" id="modal-registered-by" readonly class="w-full bg-gray-100 dark:bg-gray-800 border border-border text-text-muted text-sm rounded-lg p-3 outline-none cursor-not-allowed">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -154,7 +183,7 @@
 
 <script>
     // ★ 여기에 웹앱 URL을 입력하세요!
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLziNOU1h0ELgZqUUyKLiTawlkYdoT0hG1uKqAgC6R85BpN-6pcOcpTaSz6WvrLaOD9g/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjlMFFK9zIAzUmlXyhogXra2vjTE58tcyvljhe_7QKnAezxSyFTv2s6lj3AVXyla83rA/exec"; 
 
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
@@ -349,6 +378,7 @@
             card.innerHTML = `
                 <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${ev.title}</div>
                 <div class="text-[10px] opacity-70 mt-1">${ev.worker || ''}</div>
+                ${ev.registeredBy ? `<div class="text-[10px] opacity-50 mt-0.5 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">edit</span>${ev.registeredBy}</div>` : ''}
                 <span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>
             `;
             target.appendChild(card);
@@ -389,6 +419,7 @@
                         </div>
                         <div class="text-sm font-bold ${textColor} dark:text-gray-100 mb-1 pr-8">${ev.title}</div>
                         ${ev.worker ? `<div class="text-[10px] text-gray-500 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">person</span>${ev.worker}</div>` : ''}
+                        ${ev.registeredBy ? `<div class="text-[10px] text-gray-400 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">edit</span>등록: ${ev.registeredBy}</div>` : ''}
                         
                         <button type="button" class="absolute top-2.5 right-2.5 text-text-muted hover:text-red-500 bg-surface/80 border border-border rounded p-1.5 flex items-center justify-center shadow-sm backdrop-blur-sm z-10" onclick="deleteEvent(event, this)">
                             <span class="material-symbols-outlined text-[16px]">delete</span>
@@ -406,6 +437,7 @@
         document.getElementById('modal-event-id').value = '';
         document.getElementById('modal-title').value = '';
         document.getElementById('modal-worker').value = '';
+        document.getElementById('modal-registered-by').value = getCurrentUsername();
         document.getElementById('modal-line').value = lineStr;
         document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-primary">work</span> 새 일정 추가`;
         
@@ -430,6 +462,7 @@
         document.getElementById('modal-event-id').value = ev.id;
         document.getElementById('modal-title').value = ev.title;
         document.getElementById('modal-worker').value = ev.worker || '';
+        document.getElementById('modal-registered-by').value = ev.registeredBy || '(기록 없음)';
         
         // 라인 select 옵션을 순회하여 정확히 일치하는 값 선택 (자동으로 휴가자 탭으로 이동되는 버그 수정)
         const lineSelect = document.getElementById('modal-line');
@@ -466,6 +499,7 @@
         const id = document.getElementById('modal-event-id').value;
         const title = document.getElementById('modal-title').value.trim();
         const worker = document.getElementById('modal-worker').value.trim();
+        const registeredBy = document.getElementById('modal-registered-by').value.trim();
         const line = document.getElementById('modal-line').value;
         const category = document.getElementById('modal-category').value;
         const noteId = document.getElementById('modal-note-id').value;
@@ -481,12 +515,12 @@
             if(evIndex > -1) {
                 cachedEvents[evIndex] = { ...cachedEvents[evIndex], date, line, title, worker, category, isVacation };
             }
-            sendToSheet({ action: 'update', id, date, line, title, worker, category, isVacation });
+            sendToSheet({ action: 'update', id, date, line, title, worker, registeredBy, category, isVacation });
             
         } else { 
             if (noteId) {
                 const newId = 'EVT_' + Date.now();
-                const newEv = { id: newId, date: noteId, line, title, worker, category, isVacation: line === '🏖️ 휴가자' };
+                const newEv = { id: newId, date: noteId, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자' };
                 cachedEvents.push(newEv);
                 sendToSheet({ action: 'add', ...newEv });
             } else {
@@ -494,7 +528,7 @@
                 const endD = new Date(document.getElementById('modal-end-date').value);
                 for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
                     const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                    const newEv = { id: 'EVT_'+Date.now()+Math.floor(Math.random()*1000), date: dStr, line, title, worker, category, isVacation: line === '🏖️ 휴가자' };
+                    const newEv = { id: 'EVT_'+Date.now()+Math.floor(Math.random()*1000), date: dStr, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자' };
                     cachedEvents.push(newEv);
                     sendToSheet({ action: 'add', ...newEv });
                 }
@@ -535,14 +569,49 @@
 
     function downloadCSV() {
         if (cachedEvents.length === 0) return alert("다운로드할 데이터가 없습니다.");
-        const headers = ["ID", "날짜", "라인", "제목", "휴가여부", "카테고리", "작업자"];
-        const csvContent = [headers.join(","), ...cachedEvents.map(ev => [ev.id, ev.date, ev.line, `"${ev.title}"`, ev.isVacation, ev.category, `"${ev.worker || ''}"`].join(","))].join("\n");
+        const headers = ["ID", "날짜", "라인", "제목", "휴가여부", "카테고리", "작업자", "등록자"];
+        const csvContent = [headers.join(","), ...cachedEvents.map(ev => [ev.id, ev.date, ev.line, `"${ev.title}"`, ev.isVacation, ev.category, `"${ev.worker || ''}"`, `"${ev.registeredBy || ''}"`].join(","))].join("\n");
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.setAttribute("download", `ScheduleDB_${new Date().toLocaleDateString()}.csv`);
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
+
+    // ===== 사용자 이름 관리 =====
+    function getCurrentUsername() {
+        return localStorage.getItem('hitachi_username') || '';
+    }
+
+    function updateHeaderUsername() {
+        const name = getCurrentUsername();
+        const el = document.getElementById('header-username');
+        el.innerText = name || '이름 미설정';
+    }
+
+    function openUsernameModal() {
+        document.getElementById('username-input').value = getCurrentUsername();
+        document.getElementById('username-modal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('username-input').focus(), 50);
+    }
+
+    function saveUsername() {
+        const name = document.getElementById('username-input').value.trim();
+        if (!name) return alert('이름을 입력해주세요.');
+        localStorage.setItem('hitachi_username', name);
+        document.getElementById('username-modal').classList.add('hidden');
+        updateHeaderUsername();
+    }
+
+    // 초기 방문 시 이름 팝업
+    function checkUsername() {
+        if (!getCurrentUsername()) {
+            document.getElementById('username-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('username-input').focus(), 50);
+        }
+        updateHeaderUsername();
+    }
+    // ===========================
 
     // modal-line select 옵션을 딱 한 번만 초기화 (generateCalendarPC 재실행 시 리셋되지 않도록)
     function initLineSelect() {
@@ -551,6 +620,7 @@
     }
 
     // 초기 렌더링 실행
+    checkUsername();
     initLineSelect();
     loadEventsFromSheet();
     setInterval(loadEventsFromSheet, 60000);
