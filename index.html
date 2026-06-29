@@ -63,6 +63,10 @@
             <span class="material-symbols-outlined text-[18px]">account_circle</span>
             <span id="header-username" class="hidden md:inline max-w-[80px] truncate"></span>
         </button>
+        <button onclick="openAlarmModal()" class="relative bg-surface border border-border text-text-main hover:text-amber-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" title="Setup 알림">
+            <span class="material-symbols-outlined text-[18px]">notifications</span>
+            <span id="alarm-badge" class="hidden absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">0</span>
+        </button>
         <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
             <span class="material-symbols-outlined text-[18px]">add</span> <span class="hidden md:inline">일정 추가</span>
         </button>
@@ -144,13 +148,19 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-text-muted mb-1">분류</label>
-                    <select id="modal-category" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                    <select id="modal-category" onchange="toggleAlarmWrapper()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
                         <option value="cat-normal">🔴 일반 (Red)</option>
                         <option value="cat-pm">🟢 PM (Green)</option>
                         <option value="cat-urgent">🟠 긴급 (Orange)</option>
                         <option value="cat-setup">🟣 Setup (Purple)</option>
                     </select>
                 </div>
+            </div>
+            <div id="modal-alarm-wrapper" class="hidden bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-center gap-2">
+                <input type="checkbox" id="modal-alarm-checkbox" class="w-4 h-4 accent-amber-500 cursor-pointer">
+                <label for="modal-alarm-checkbox" class="text-sm font-bold text-amber-700 dark:text-amber-400 cursor-pointer flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[18px]">notifications</span> 알림 설정 (시작 2주 전부터 알람탭에 표시)
+                </label>
             </div>
             <div id="modal-date-wrapper" class="grid grid-cols-2 gap-4">
                 <div><label class="block text-xs font-bold text-text-muted mb-1">시작일</label><input type="date" id="modal-start-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
@@ -181,9 +191,21 @@
     </div>
 </div>
 
+<div id="alarm-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh]">
+        <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 class="text-lg font-bold flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-amber-500">notifications</span> Setup 알림 (D-14 이내)
+            </h3>
+            <button onclick="closeAlarmModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div id="alarm-list" class="p-4 overflow-y-auto space-y-2 flex-1 min-h-[150px]"></div>
+    </div>
+</div>
+
 <script>
     // ★ 여기에 웹앱 URL을 입력하세요!
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjlMFFK9zIAzUmlXyhogXra2vjTE58tcyvljhe_7QKnAezxSyFTv2s6lj3AVXyla83rA/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7asWstpFcaiQ0g9a6g6I-0fXh0gIbsS0H4Qbiq-iPJvNWfcTwDPOZ9wv0T6-pM0Qr6A/exec"; 
 
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
@@ -283,7 +305,8 @@
                         sendToSheet({ 
                             action: 'update', id: existingEvent.id, date: existingEvent.date, 
                             line: existingEvent.line, title: existingEvent.title, 
-                            worker: existingEvent.worker, category: existingEvent.category, isVacation: existingEvent.isVacation 
+                            worker: existingEvent.worker, category: existingEvent.category, isVacation: existingEvent.isVacation,
+                            registeredBy: existingEvent.registeredBy, alarmOn: existingEvent.alarmOn
                         });
                     }
                 }
@@ -356,6 +379,7 @@
             generateCalendarPC();
             generateCalendarMobile();
             cachedEvents.forEach(ev => appendCardToPC(ev));
+            updateAlarmBadge();
             
             badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
         } catch (e) { 
@@ -376,7 +400,7 @@
             
             card.onclick = (e) => { e.stopPropagation(); openEditModal(ev.id); };
             card.innerHTML = `
-                <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${ev.title}</div>
+                <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${(ev.alarmOn === true || ev.alarmOn === 'true') ? '<span class="material-symbols-outlined text-[12px] align-middle mr-0.5">notifications</span>' : ''}${ev.title}</div>
                 <div class="text-[10px] opacity-70 mt-1">${ev.worker || ''}</div>
                 ${ev.registeredBy ? `<div class="text-[10px] opacity-50 mt-0.5 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">edit</span>${ev.registeredBy}</div>` : ''}
                 <span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>
@@ -432,6 +456,18 @@
 
     function closeMobileDayView() { document.getElementById('mobile-day-modal').classList.add('hidden'); }
 
+    // 🔔 분류가 Setup일 때만 알림 체크박스 노출
+    function toggleAlarmWrapper() {
+        const cat = document.getElementById('modal-category').value;
+        const wrapper = document.getElementById('modal-alarm-wrapper');
+        if (cat === 'cat-setup') {
+            wrapper.classList.remove('hidden');
+        } else {
+            wrapper.classList.add('hidden');
+            document.getElementById('modal-alarm-checkbox').checked = false;
+        }
+    }
+
     // 📝 팝업창 열기/닫기
     function openModal(dateStr = '', lineStr = lines[0]) {
         document.getElementById('modal-event-id').value = '';
@@ -439,6 +475,9 @@
         document.getElementById('modal-worker').value = '';
         document.getElementById('modal-registered-by').value = getCurrentUsername();
         document.getElementById('modal-line').value = lineStr;
+        document.getElementById('modal-category').value = 'cat-normal';
+        document.getElementById('modal-alarm-checkbox').checked = false;
+        toggleAlarmWrapper();
         document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-primary">work</span> 새 일정 추가`;
         
         if (dateStr.startsWith('note-')) {
@@ -477,6 +516,8 @@
         if (!lineMatched) lineSelect.value = ev.line;
         
         document.getElementById('modal-category').value = ev.category || 'cat-normal';
+        document.getElementById('modal-alarm-checkbox').checked = ev.alarmOn === true || ev.alarmOn === 'true';
+        toggleAlarmWrapper();
         document.getElementById('modal-header-title').innerHTML = `<span class="material-symbols-outlined text-blue-500">edit</span> 일정 수정`;
         
         if (ev.date.startsWith('note-')) {
@@ -502,6 +543,7 @@
         const registeredBy = document.getElementById('modal-registered-by').value.trim();
         const line = document.getElementById('modal-line').value;
         const category = document.getElementById('modal-category').value;
+        const alarmOn = category === 'cat-setup' && document.getElementById('modal-alarm-checkbox').checked;
         const noteId = document.getElementById('modal-note-id').value;
         
         if (!title) return alert("제목을 입력하세요.");
@@ -513,14 +555,14 @@
             
             const evIndex = cachedEvents.findIndex(e => e.id === id);
             if(evIndex > -1) {
-                cachedEvents[evIndex] = { ...cachedEvents[evIndex], date, line, title, worker, category, isVacation };
+                cachedEvents[evIndex] = { ...cachedEvents[evIndex], date, line, title, worker, category, isVacation, alarmOn };
             }
-            sendToSheet({ action: 'update', id, date, line, title, worker, registeredBy, category, isVacation });
+            sendToSheet({ action: 'update', id, date, line, title, worker, registeredBy, category, isVacation, alarmOn });
             
         } else { 
             if (noteId) {
                 const newId = 'EVT_' + Date.now();
-                const newEv = { id: newId, date: noteId, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자' };
+                const newEv = { id: newId, date: noteId, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자', alarmOn };
                 cachedEvents.push(newEv);
                 sendToSheet({ action: 'add', ...newEv });
             } else {
@@ -528,7 +570,7 @@
                 const endD = new Date(document.getElementById('modal-end-date').value);
                 for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
                     const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                    const newEv = { id: 'EVT_'+Date.now()+Math.floor(Math.random()*1000), date: dStr, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자' };
+                    const newEv = { id: 'EVT_'+Date.now()+Math.floor(Math.random()*1000), date: dStr, line, title, worker, registeredBy, category, isVacation: line === '🏖️ 휴가자', alarmOn };
                     cachedEvents.push(newEv);
                     sendToSheet({ action: 'add', ...newEv });
                 }
@@ -539,6 +581,7 @@
         document.querySelectorAll('.event-card').forEach(c => c.remove());
         cachedEvents.forEach(ev => appendCardToPC(ev));
         generateCalendarMobile();
+        updateAlarmBadge();
 
         // 2초 뒤 조용히 동기화
         setTimeout(loadEventsFromSheet, 2000); 
@@ -611,6 +654,66 @@
         }
         updateHeaderUsername();
     }
+    // ===========================
+
+    // ===== 🔔 Setup 알림 관리 =====
+    // 알람 대상 일정 계산: category가 Setup이고 alarmOn이 true이며,
+    // 시작일이 오늘부터 14일 이내(과거 지난 일정은 제외)인 경우
+    function getAlarmEvents() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const limit = new Date(today);
+        limit.setDate(limit.getDate() + 14);
+
+        return cachedEvents.filter(ev => {
+            const isAlarmOn = ev.alarmOn === true || ev.alarmOn === 'true';
+            if (!isAlarmOn || ev.category !== 'cat-setup') return false;
+            if (!ev.date || ev.date.startsWith('note-')) return false;
+            const evDate = new Date(ev.date);
+            if (isNaN(evDate)) return false;
+            return evDate >= today && evDate <= limit;
+        }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    function updateAlarmBadge() {
+        const alarms = getAlarmEvents();
+        const badge = document.getElementById('alarm-badge');
+        if (alarms.length > 0) {
+            badge.classList.remove('hidden');
+            badge.innerText = alarms.length > 99 ? '99+' : alarms.length;
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    function openAlarmModal() {
+        const alarms = getAlarmEvents();
+        const listEl = document.getElementById('alarm-list');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (alarms.length === 0) {
+            listEl.innerHTML = '<div class="text-center text-text-muted py-10 text-sm">14일 이내 예정된 Setup 알림이 없습니다.</div>';
+        } else {
+            listEl.innerHTML = alarms.map(ev => {
+                const evDate = new Date(ev.date);
+                const dDay = Math.round((evDate - today) / (1000 * 60 * 60 * 24));
+                const dDayLabel = dDay === 0 ? 'D-DAY' : `D-${dDay}`;
+                return `
+                    <div class="relative border-l-4 border-purple-500 bg-purple-50/50 dark:bg-gray-800 p-3 rounded-r-lg shadow-sm cursor-pointer active:opacity-70" onclick="closeAlarmModal(); openEditModal('${ev.id}')">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">${dDayLabel}</span>
+                            <span class="text-[10px] text-text-muted">${ev.date} · ${ev.line}</span>
+                        </div>
+                        <div class="text-sm font-bold text-text-main dark:text-gray-100">${ev.title}</div>
+                        ${ev.worker ? `<div class="text-[10px] text-text-muted mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">person</span>${ev.worker}</div>` : ''}
+                    </div>`;
+            }).join('');
+        }
+        document.getElementById('alarm-modal').classList.remove('hidden');
+    }
+
+    function closeAlarmModal() { document.getElementById('alarm-modal').classList.add('hidden'); }
     // ===========================
 
     // modal-line select 옵션을 딱 한 번만 초기화 (generateCalendarPC 재실행 시 리셋되지 않도록)
