@@ -240,7 +240,7 @@
 
 <script>
     // ★ 여기에 웹앱 URL을 입력하세요!
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-qhcq5mcAr7-OVB7MlE9EvAkZn8DEil9nlDBIBXgQ9TosWSstmEWarQGt5n3sB3ytKQ/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-qhcq5mcAr7-OVB7MlE9EvAkZn8DEil9nlDBIBXgQ9TosWSstmEWarQGt5n3sB3ytKQ/exec"; 
 
     const todayObj = new Date();
     let currentYear = todayObj.getFullYear();
@@ -831,14 +831,24 @@
     function updateEquipField(id, field, value) {
         const eq = findEquip(id);
         if (!eq) return;
-        eq[field] = value || EQUIP_NONE;
+        if (field === 'lineName') {
+            eq[field] = value; // 호기명은 빈 값이어도 그대로 둠
+        } else {
+            eq[field] = value || EQUIP_NONE; // 날짜 필드가 비면 미적용(X) 처리
+        }
         sendEquipToSheet({ action: 'updateEquip', ...eq });
     }
 
     function toggleEquipNone(id, field, checked) {
         const eq = findEquip(id);
         if (!eq) return;
-        eq[field] = checked ? EQUIP_NONE : '';
+        if (checked) {
+            eq[field] = EQUIP_NONE;
+        } else {
+            // 체크 해제 시 오늘 날짜를 기본값으로 채워 'X' 판정에서 벗어나도록 함
+            const todayStr = new Date().toISOString().slice(0, 10);
+            eq[field] = todayStr;
+        }
         renderEquipTable();
         sendEquipToSheet({ action: 'updateEquip', ...eq });
     }
