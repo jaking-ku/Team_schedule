@@ -400,22 +400,27 @@
         container.appendChild(noteBtn);
     }
 
-    // ☁️ 데이터 로딩 및 동기화
+    // 🖥️ 화면만 다시 그리기 (네트워크 요청 없음 - 이미 받아온 cachedEvents 사용)
+    function renderCalendarUI() {
+        document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
+        generateCalendarPC();
+        generateCalendarMobile();
+        cachedEvents.forEach(ev => appendCardToPC(ev));
+        updateAlarmBadge();
+    }
+
+    // ☁️ 데이터 로딩 및 동기화 (서버에서 새로 받아올 때만 호출)
     async function loadEventsFromSheet() {
         const badge = document.querySelector('.cloud-sync-badge');
         badge.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span> 동기화 중';
-        document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
-        
+
         try {
             const url = SCRIPT_URL + "?t=" + new Date().getTime();
             const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
             cachedEvents = await res.json();
-            
-            generateCalendarPC();
-            generateCalendarMobile();
-            cachedEvents.forEach(ev => appendCardToPC(ev));
-            updateAlarmBadge();
-            
+
+            renderCalendarUI();
+
             badge.innerHTML = '<span class="material-symbols-outlined text-[16px] text-green-500">cloud_done</span> 최신 상태';
         } catch (e) { 
             badge.innerHTML = '연결 실패'; 
@@ -640,7 +645,7 @@
         currentMonth += d; 
         if(currentMonth>12){currentMonth=1; currentYear++;} 
         if(currentMonth<1){currentMonth=12; currentYear--;} 
-        loadEventsFromSheet(); 
+        renderCalendarUI(); // 이미 로드된 데이터로 즉시 렌더링 (서버 재요청 없음)
     }
     
     function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
