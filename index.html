@@ -73,6 +73,9 @@
         <button onclick="openEquipModal()" class="bg-surface border border-border text-text-main hover:text-purple-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" title="셋업 관리">
             <span class="material-symbols-outlined text-[18px]">precision_manufacturing</span> <span class="hidden md:inline">셋업관리</span>
         </button>
+        <button onclick="openTeamModal()" class="bg-surface border border-border text-text-main hover:text-teal-500 text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" title="팀원 관리">
+            <span class="material-symbols-outlined text-[18px]">groups</span> <span class="hidden md:inline">팀원관리</span>
+        </button>
         <button class="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-2 md:px-3 py-1.5 rounded flex items-center gap-1" onclick="openModal()">
             <span class="material-symbols-outlined text-[18px]">add</span> <span class="hidden md:inline">일정 추가</span>
         </button>
@@ -140,8 +143,20 @@
                 <input type="text" id="modal-title" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-bold text-text-muted mb-1">작업자 (쉼표로 구분)</label>
-                <input type="text" id="modal-worker" placeholder="예: 홍길동, 김철수" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                <label class="block text-xs font-bold text-text-muted mb-1">작업자</label>
+                <input type="text" id="modal-worker" placeholder="아래에서 팀원을 체크하거나 직접 입력 (쉼표로 구분)" oninput="renderWorkerChecklist()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                <!-- 🧑‍🤝‍🧑 팀원 체크박스 선택 영역 (해당 날짜 휴가자는 자동 제외) -->
+                <div id="worker-checklist-wrapper" class="hidden mt-2 bg-background border border-border rounded-lg p-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[11px] font-bold text-text-muted flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">how_to_reg</span>팀원 선택 (당일 휴가자 자동 제외)</span>
+                        <button type="button" onclick="openTeamModal()" class="text-[11px] font-bold text-primary hover:underline">팀원 관리</button>
+                    </div>
+                    <div id="worker-checklist" class="flex flex-wrap gap-1.5"></div>
+                    <div id="worker-vacation-info" class="hidden text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1"></div>
+                </div>
+                <div id="worker-team-empty" class="hidden mt-2 text-[11px] text-text-muted">
+                    💡 <button type="button" onclick="openTeamModal()" class="font-bold text-primary hover:underline">팀원 관리</button>에서 우리 팀을 등록하면, 휴가자를 제외한 팀원을 체크박스로 선택할 수 있습니다.
+                </div>
             </div>
             <div>
                 <label class="block text-xs font-bold text-text-muted mb-1">등록자</label>
@@ -169,8 +184,8 @@
                 </label>
             </div>
             <div id="modal-date-wrapper" class="grid grid-cols-2 gap-4">
-                <div><label class="block text-xs font-bold text-text-muted mb-1">시작일</label><input type="date" id="modal-start-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
-                <div><label class="block text-xs font-bold text-text-muted mb-1">마감일</label><input type="date" id="modal-end-date" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
+                <div><label class="block text-xs font-bold text-text-muted mb-1">시작일</label><input type="date" id="modal-start-date" onchange="renderWorkerChecklist()" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
+                <div><label class="block text-xs font-bold text-text-muted mb-1">마감일</label><input type="date" id="modal-end-date" onchange="renderWorkerChecklist()" class="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none"></div>
             </div>
             <div id="modal-note-msg" class="hidden bg-blue-50 text-blue-600 p-3 rounded-lg text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined">info</span>해당 주차 비고 란에 등록됩니다.</div>
             <input type="hidden" id="modal-note-id">
@@ -241,6 +256,33 @@
     </div>
 </div>
 
+<!-- 🧑‍🤝‍🧑 팀원 관리 모달 -->
+<div id="team-modal" class="fixed inset-0 bg-black/60 hidden z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
+        <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 class="text-lg font-bold flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-teal-500">groups</span> 팀원 관리
+            </h3>
+            <button onclick="closeTeamModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-5 flex-1 overflow-y-auto">
+            <p class="text-xs text-text-muted mb-3">등록된 팀원은 일정 추가 시 <b>작업자 체크박스</b>로 표시되며, 해당 날짜에 🏖️ 휴가로 등록된 인원은 자동으로 제외됩니다. 목록은 시트에 저장되어 팀 전체가 공유합니다.</p>
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="team-member-input" placeholder="이름 입력 후 Enter (예: 홍길동)" maxlength="20"
+                    class="flex-1 bg-background border border-border text-text-main text-sm rounded-lg p-2.5 outline-none focus:border-primary"
+                    onkeydown="if(event.key==='Enter') addTeamMember()">
+                <button onclick="addTeamMember()" class="px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:opacity-90 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[18px]">person_add</span> 추가
+                </button>
+            </div>
+            <div id="team-member-list" class="space-y-1.5"></div>
+        </div>
+        <div class="px-5 py-4 border-t border-border bg-background/50 flex justify-end">
+            <button onclick="closeTeamModal()" class="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:opacity-90 transition-opacity">닫기</button>
+        </div>
+    </div>
+</div>
+
 <!-- HTK 회사 캘린더(휴일) 확인 모달 -->
 <div id="htk-calendar-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
@@ -289,6 +331,170 @@
     let lines = ["🏖️ 휴가자", "P1F", "P1D", "P2F", "P2D", "P3F", "P3D", "P4H", "P4D"];
     let cachedEvents = [];
     let currentZoom = 1.0;
+
+    // ===== 🧑‍🤝‍🧑 팀원 관리 =====
+    // 팀원 목록은 기존 백엔드(add/update)를 그대로 사용해 시트에 '숨김 설정 행'으로 저장 → 팀 전체 공유
+    const TEAM_CONFIG_ID = 'TEAM_MEMBERS_CONFIG';
+    const TEAM_CONFIG_DATE = 'config-team';
+    let teamMembers = JSON.parse(localStorage.getItem('hitachi_team_members') || '[]');
+    let teamConfigOnServer = false;
+
+    // 서버에서 받은 이벤트 중 팀원 설정 행을 추출하고, 화면 렌더링 대상에서는 제외
+    function extractTeamConfig(events) {
+        const cfgs = events.filter(e => e.id === TEAM_CONFIG_ID || String(e.date || '').startsWith(TEAM_CONFIG_DATE));
+        if (cfgs.length > 0) {
+            teamConfigOnServer = true;
+            const last = cfgs[cfgs.length - 1];
+            teamMembers = String(last.worker || '').split(',').map(s => s.trim()).filter(Boolean);
+            localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
+        }
+        return events.filter(e => !(e.id === TEAM_CONFIG_ID || String(e.date || '').startsWith(TEAM_CONFIG_DATE)));
+    }
+
+    function saveTeamToServer() {
+        localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
+        const payload = {
+            id: TEAM_CONFIG_ID, date: TEAM_CONFIG_DATE, line: '',
+            title: '⚙️ 팀원 목록 (시스템 설정 - 삭제 금지)',
+            worker: teamMembers.join(', '),
+            registeredBy: getCurrentUsername(), category: 'cat-normal', isVacation: false, alarmOn: false
+        };
+        if (teamConfigOnServer) {
+            sendToSheet({ action: 'update', ...payload });
+        } else {
+            sendToSheet({ action: 'add', ...payload });
+            teamConfigOnServer = true;
+        }
+    }
+
+    function openTeamModal() {
+        renderTeamList();
+        document.getElementById('team-modal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('team-member-input').focus(), 50);
+    }
+
+    function closeTeamModal() {
+        document.getElementById('team-modal').classList.add('hidden');
+        // 일정 모달이 열려 있으면 체크리스트 즉시 갱신
+        if (!document.getElementById('event-modal').classList.contains('hidden')) renderWorkerChecklist();
+    }
+
+    function renderTeamList() {
+        const listEl = document.getElementById('team-member-list');
+        if (teamMembers.length === 0) {
+            listEl.innerHTML = '<div class="text-center text-text-muted py-8 text-sm">등록된 팀원이 없습니다. 위에서 이름을 추가해주세요.</div>';
+            return;
+        }
+        listEl.innerHTML = teamMembers.map((m, idx) => `
+            <div class="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                <span class="text-sm font-bold text-text-main flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-text-muted">person</span>${m}
+                </span>
+                <button onclick="removeTeamMember(${idx})" class="text-text-muted hover:text-red-500" title="삭제">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+            </div>`).join('');
+    }
+
+    function addTeamMember() {
+        const input = document.getElementById('team-member-input');
+        const name = input.value.trim();
+        if (!name) return;
+        if (teamMembers.includes(name)) { alert('이미 등록된 팀원입니다.'); return; }
+        teamMembers.push(name);
+        input.value = '';
+        input.focus();
+        renderTeamList();
+        saveTeamToServer();
+    }
+
+    function removeTeamMember(idx) {
+        if (!confirm(`'${teamMembers[idx]}' 팀원을 목록에서 삭제하시겠습니까?`)) return;
+        teamMembers.splice(idx, 1);
+        renderTeamList();
+        saveTeamToServer();
+    }
+
+    // ===== 🏖️ 휴가자 자동 제외 작업자 체크리스트 =====
+    // 지정한 날짜 범위(YYYY-MM-DD 문자열 비교)에 휴가로 등록된 팀원 이름 수집
+    function getVacationersForRange(startStr, endStr) {
+        const names = new Set();
+        cachedEvents.forEach(ev => {
+            const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === true || ev.isVacation === 'true';
+            if (!isVac) return;
+            const d = String(ev.date || '');
+            if (!d || d.startsWith('note-') || d.startsWith('config-')) return;
+            if (d >= startStr && d <= endStr) {
+                const text = `${ev.title || ''} ${ev.worker || ''}`;
+                teamMembers.forEach(m => { if (text.includes(m)) names.add(m); });
+            }
+        });
+        return names;
+    }
+
+    function parseWorkerInput() {
+        return document.getElementById('modal-worker').value.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    function renderWorkerChecklist() {
+        const wrapper = document.getElementById('worker-checklist-wrapper');
+        const emptyHint = document.getElementById('worker-team-empty');
+        const listEl = document.getElementById('worker-checklist');
+        const vacInfo = document.getElementById('worker-vacation-info');
+
+        if (teamMembers.length === 0) {
+            wrapper.classList.add('hidden');
+            emptyHint.classList.remove('hidden');
+            return;
+        }
+        emptyHint.classList.add('hidden');
+        wrapper.classList.remove('hidden');
+
+        // 검사할 날짜 범위 결정 (비고 일정은 날짜가 없으므로 휴가 제외 없이 전체 표시)
+        const noteId = document.getElementById('modal-note-id').value;
+        let startStr = document.getElementById('modal-start-date').value;
+        let endStr = document.getElementById('modal-end-date').value || startStr;
+        if (endStr < startStr) endStr = startStr;
+
+        let vacationers = new Set();
+        if (!noteId && startStr) vacationers = getVacationersForRange(startStr, endStr);
+
+        const selected = parseWorkerInput();
+        const available = teamMembers.filter(m => !vacationers.has(m));
+
+        if (available.length === 0) {
+            listEl.innerHTML = '<span class="text-xs text-text-muted">선택 가능한 팀원이 없습니다. (전원 휴가)</span>';
+        } else {
+            listEl.innerHTML = available.map(m => {
+                const checked = selected.includes(m);
+                return `<label class="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border cursor-pointer select-none transition-colors ${checked ? 'bg-red-50 dark:bg-red-900/20 border-primary text-primary' : 'bg-surface border-border text-text-main hover:border-primary/50'}">
+                    <input type="checkbox" value="${m}" ${checked ? 'checked' : ''} class="w-3.5 h-3.5 accent-[#b7000c] cursor-pointer" onchange="toggleWorkerFromChecklist()">${m}</label>`;
+            }).join('');
+        }
+
+        // 휴가로 제외된 인원 안내
+        const excluded = teamMembers.filter(m => vacationers.has(m));
+        if (excluded.length > 0) {
+            vacInfo.classList.remove('hidden');
+            vacInfo.innerHTML = `<span class="material-symbols-outlined text-[14px]">beach_access</span>휴가로 제외됨: ${excluded.join(', ')}`;
+            // 휴가자가 이미 작업자로 입력돼 있으면 자동 제거
+            const cleaned = selected.filter(w => !vacationers.has(w));
+            if (cleaned.length !== selected.length) {
+                document.getElementById('modal-worker').value = cleaned.join(', ');
+            }
+        } else {
+            vacInfo.classList.add('hidden');
+        }
+    }
+
+    // 체크박스 선택 → 작업자 입력란에 자동 반영 (팀원 외 직접 입력한 이름은 유지)
+    function toggleWorkerFromChecklist() {
+        const checked = Array.from(document.querySelectorAll('#worker-checklist input:checked')).map(i => i.value);
+        const manual = parseWorkerInput().filter(w => !teamMembers.includes(w));
+        document.getElementById('modal-worker').value = [...checked, ...manual].join(', ');
+        renderWorkerChecklist();
+    }
+    // ===========================
 
     function changeZoom(delta) {
         currentZoom += delta;
@@ -458,7 +664,7 @@
         try {
             const url = SCRIPT_URL + "?t=" + new Date().getTime();
             const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
-            cachedEvents = await res.json();
+            cachedEvents = extractTeamConfig(await res.json());
 
             renderCalendarUI();
 
@@ -573,6 +779,7 @@
             document.getElementById('modal-start-date').value = defDate;
             document.getElementById('modal-end-date').value = defDate;
         }
+        renderWorkerChecklist();
         document.getElementById('event-modal').classList.remove('hidden');
     }
 
@@ -611,6 +818,7 @@
             document.getElementById('modal-start-date').value = ev.date;
             document.getElementById('modal-end-date').value = ev.date;
         }
+        renderWorkerChecklist();
         document.getElementById('event-modal').classList.remove('hidden');
     }
 
