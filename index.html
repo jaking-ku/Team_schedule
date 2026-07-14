@@ -31,6 +31,14 @@
         .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
         html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
         .is-note { background-color: rgba(0,0,0,0.02); }
+
+        /* 🎌 연휴(공휴일) 표시 - 반투명 주황색 (일정 추가/드래그는 그대로 가능) */
+        .is-holiday { background-color: rgba(249, 115, 22, 0.14); }
+        html.dark .is-holiday { background-color: rgba(249, 115, 22, 0.18); }
+        .is-holiday-header { background-color: rgba(249, 115, 22, 0.25) !important; color: #c2410c !important; cursor: pointer; }
+        html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !important; color: #fdba74 !important; }
+        .date-header-clickable { cursor: pointer; transition: background-color 0.15s; }
+        .date-header-clickable:hover { background-color: rgba(249, 115, 22, 0.12); }
         
         .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
         .cat-normal { border-left-color: #b7000c; } 
@@ -204,8 +212,11 @@
             <button onclick="closeMobileDayView()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
         </div>
         <div id="mobile-day-events" class="p-4 overflow-y-auto space-y-2 flex-1 min-h-[200px]"></div>
-        <div class="p-4 border-t border-border bg-background/50">
-            <button id="mobile-add-btn" class="w-full py-3 text-sm font-bold bg-primary text-white rounded-lg flex items-center justify-center gap-2">
+        <div class="p-4 border-t border-border bg-background/50 flex gap-2">
+            <button id="mobile-holiday-btn" class="hidden px-4 py-3 text-sm font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 border border-orange-300 rounded-lg flex items-center justify-center gap-1 whitespace-nowrap">
+                <span class="material-symbols-outlined text-[18px]">celebration</span><span id="mobile-holiday-btn-label">연휴</span>
+            </button>
+            <button id="mobile-add-btn" class="flex-1 py-3 text-sm font-bold bg-primary text-white rounded-lg flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">add</span> 새 일정 추가
             </button>
         </div>
@@ -283,6 +294,26 @@
     </div>
 </div>
 
+<!-- 🎌 연휴(공휴일) 설정 모달 -->
+<div id="holiday-modal" class="fixed inset-0 bg-black/60 hidden z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-border">
+        <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 class="text-lg font-bold flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-orange-500">celebration</span> 연휴 설정
+            </h3>
+            <button onclick="closeHolidayModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-6 text-center">
+            <div id="holiday-modal-date" class="text-xl font-black text-text-main mb-2"></div>
+            <p id="holiday-modal-desc" class="text-xs text-text-muted leading-relaxed"></p>
+        </div>
+        <div class="px-6 pb-5 flex justify-end gap-2">
+            <button onclick="closeHolidayModal()" class="px-4 py-2 text-sm font-bold text-text-muted">취소</button>
+            <button id="holiday-toggle-btn" onclick="toggleHoliday()" class="px-6 py-2 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity"></button>
+        </div>
+    </div>
+</div>
+
 <!-- HTK 회사 캘린더(휴일) 확인 모달 -->
 <div id="htk-calendar-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
@@ -339,16 +370,28 @@
     let teamMembers = JSON.parse(localStorage.getItem('hitachi_team_members') || '[]');
     let teamConfigOnServer = false;
 
-    // 서버에서 받은 이벤트 중 팀원 설정 행을 추출하고, 화면 렌더링 대상에서는 제외
+    // 서버에서 받은 이벤트 중 팀원/연휴 설정 행을 추출하고, 화면 렌더링 대상에서는 제외
     function extractTeamConfig(events) {
-        const cfgs = events.filter(e => e.id === TEAM_CONFIG_ID || String(e.date || '').startsWith(TEAM_CONFIG_DATE));
+        const isTeamCfg = e => e.id === TEAM_CONFIG_ID || String(e.date || '').startsWith(TEAM_CONFIG_DATE);
+        const isHolCfg = e => e.id === HOLIDAY_CONFIG_ID || String(e.date || '').startsWith(HOLIDAY_CONFIG_DATE);
+
+        const cfgs = events.filter(isTeamCfg);
         if (cfgs.length > 0) {
             teamConfigOnServer = true;
             const last = cfgs[cfgs.length - 1];
             teamMembers = String(last.worker || '').split(',').map(s => s.trim()).filter(Boolean);
             localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
         }
-        return events.filter(e => !(e.id === TEAM_CONFIG_ID || String(e.date || '').startsWith(TEAM_CONFIG_DATE)));
+
+        const holCfgs = events.filter(isHolCfg);
+        if (holCfgs.length > 0) {
+            holidayConfigOnServer = true;
+            const last = holCfgs[holCfgs.length - 1];
+            holidays = String(last.worker || '').split(',').map(s => s.trim()).filter(Boolean);
+            localStorage.setItem('hitachi_holidays', JSON.stringify(holidays));
+        }
+
+        return events.filter(e => !isTeamCfg(e) && !isHolCfg(e));
     }
 
     function saveTeamToServer() {
@@ -372,6 +415,70 @@
         document.getElementById('team-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('team-member-input').focus(), 50);
     }
+
+    // ===== 🎌 연휴(공휴일) 관리 =====
+    // 연휴 날짜 목록도 시트의 숨김 설정 행으로 저장 → 팀 전체 공유 (백엔드 수정 불필요)
+    const HOLIDAY_CONFIG_ID = 'HOLIDAY_CONFIG';
+    const HOLIDAY_CONFIG_DATE = 'config-holiday';
+    let holidays = JSON.parse(localStorage.getItem('hitachi_holidays') || '[]');
+    let holidayConfigOnServer = false;
+    let holidayTargetDate = '';
+
+    function isHoliday(dateStr) { return holidays.includes(dateStr); }
+
+    function saveHolidaysToServer() {
+        localStorage.setItem('hitachi_holidays', JSON.stringify(holidays));
+        const payload = {
+            id: HOLIDAY_CONFIG_ID, date: HOLIDAY_CONFIG_DATE, line: '',
+            title: '⚙️ 연휴 목록 (시스템 설정 - 삭제 금지)',
+            worker: holidays.join(', '),
+            registeredBy: getCurrentUsername(), category: 'cat-normal', isVacation: false, alarmOn: false
+        };
+        if (holidayConfigOnServer) {
+            sendToSheet({ action: 'update', ...payload });
+        } else {
+            sendToSheet({ action: 'add', ...payload });
+            holidayConfigOnServer = true;
+        }
+    }
+
+    function openHolidayModal(dateStr) {
+        holidayTargetDate = dateStr;
+        const d = new Date(dateStr);
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        document.getElementById('holiday-modal-date').innerText =
+            `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`;
+
+        const btn = document.getElementById('holiday-toggle-btn');
+        const desc = document.getElementById('holiday-modal-desc');
+        if (isHoliday(dateStr)) {
+            btn.innerText = '연휴 해제';
+            btn.className = 'px-6 py-2 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity bg-gray-500';
+            desc.innerHTML = '현재 <b class="text-orange-500">연휴</b>로 설정된 날입니다.<br>해제하면 일반 근무일 표시로 돌아갑니다.';
+        } else {
+            btn.innerText = '연휴 설정';
+            btn.className = 'px-6 py-2 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity bg-orange-500';
+            desc.innerHTML = '이 날을 <b class="text-orange-500">연휴</b>로 설정하면 해당 날짜 전체가<br>반투명 주황색으로 표시됩니다. <b>일정 추가는 계속 가능</b>합니다.';
+        }
+        document.getElementById('holiday-modal').classList.remove('hidden');
+    }
+
+    function closeHolidayModal() { document.getElementById('holiday-modal').classList.add('hidden'); }
+
+    function toggleHoliday() {
+        if (!holidayTargetDate) return;
+        if (isHoliday(holidayTargetDate)) {
+            holidays = holidays.filter(d => d !== holidayTargetDate);
+        } else {
+            holidays.push(holidayTargetDate);
+            holidays.sort();
+        }
+        saveHolidaysToServer();
+        closeHolidayModal();
+        renderCalendarUI(); // 즉시 화면 반영
+    }
+    // ===========================
+
 
     function closeTeamModal() {
         document.getElementById('team-modal').classList.add('hidden');
@@ -547,7 +654,14 @@
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
             week.forEach((day, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
-                grid.innerHTML += `<div class="grid-header ${color}">${day ? dayNames[idx]+' ('+day+'일)' : ''}</div>`;
+                if (day) {
+                    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                    const hol = isHoliday(dateStr);
+                    const holBadge = hol ? '<span class="text-[9px] font-black text-orange-600 dark:text-orange-300 ml-1 border border-orange-400 rounded px-1">연휴</span>' : '';
+                    grid.innerHTML += `<div class="grid-header date-header-clickable ${hol ? 'is-holiday-header' : color}" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayNames[idx]+' ('+day+'일)'}${holBadge}</div>`;
+                } else {
+                    grid.innerHTML += `<div class="grid-header ${color}"></div>`;
+                }
             });
             grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`;
             
@@ -556,7 +670,8 @@
                 week.forEach(day => {
                     if (day) {
                         const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                        grid.innerHTML += `<div class="grid-cell dropzone ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
+                        const holClass = isHoliday(dateStr) ? 'is-holiday' : '';
+                        grid.innerHTML += `<div class="grid-cell dropzone ${holClass} ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
                     } else grid.innerHTML += `<div class="grid-cell bg-gray-100 dark:bg-gray-800/50 opacity-50 cursor-not-allowed"></div>`;
                 });
                 const noteId = `note-${currentYear}-${currentMonth}-W${wIdx+1}`;
@@ -622,7 +737,9 @@
             const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
             const dayOfWeek = new Date(currentYear, currentMonth - 1, day).getDay();
             const dateColor = dayOfWeek === 0 ? 'text-red-500' : (dayOfWeek === 6 ? 'text-blue-500' : 'text-text-main');
-            const isToday = dateStr === todayStr ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-surface';
+            const hol = isHoliday(dateStr);
+            const isToday = dateStr === todayStr ? 'bg-blue-50 dark:bg-blue-900/20' : (hol ? 'is-holiday bg-surface' : 'bg-surface');
+            const holDot = hol ? '<div class="text-[8px] font-black text-orange-600 dark:text-orange-300 text-center leading-none">연휴</div>' : '';
             
             const dayEvents = cachedEvents.filter(ev => ev.date === dateStr);
             let eventsHtml = dayEvents.slice(0, 3).map(ev => {
@@ -635,7 +752,7 @@
 
             const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${day}</span>` : `<span>${day}</span>`;
 
-            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-1 flex justify-center">${todayCircle}</div><div class="flex-1 flex flex-col gap-[1px]">${eventsHtml}</div></div>`;
+            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${eventsHtml}</div></div>`;
         }
         container.appendChild(grid);
 
@@ -701,14 +818,21 @@
         const titleEl = document.getElementById('mobile-day-title');
         const container = document.getElementById('mobile-day-events');
         const addBtn = document.getElementById('mobile-add-btn');
+        const holBtn = document.getElementById('mobile-holiday-btn');
         
         if (isNotes) {
             titleEl.innerText = `${currentMonth}월 미정/비고 일정`;
             addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
+            holBtn.classList.add('hidden');
         } else {
             const d = new Date(dateStr);
-            titleEl.innerText = `${d.getMonth()+1}월 ${d.getDate()}일 일정`;
+            const holMark = isHoliday(dateStr) ? ' 🎌' : '';
+            titleEl.innerText = `${d.getMonth()+1}월 ${d.getDate()}일 일정${holMark}`;
             addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
+            // 연휴 설정/해제 버튼
+            holBtn.classList.remove('hidden');
+            document.getElementById('mobile-holiday-btn-label').innerText = isHoliday(dateStr) ? '연휴 해제' : '연휴 설정';
+            holBtn.onclick = () => { closeMobileDayView(); openHolidayModal(dateStr); };
         }
 
         container.innerHTML = '';
