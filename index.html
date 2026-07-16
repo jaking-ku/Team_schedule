@@ -826,7 +826,7 @@
             holBtn.classList.add('hidden');
         } else {
             const d = new Date(dateStr);
-            const holMark = isHoliday(dateStr) ? ' 🎌' : '';
+            const holMark = isHoliday(dateStr) ? ' 🇰🇷' : '';
             titleEl.innerText = `${d.getMonth()+1}월 ${d.getDate()}일 일정${holMark}`;
             addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
             // 연휴 설정/해제 버튼
