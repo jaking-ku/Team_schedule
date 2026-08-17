@@ -98,28 +98,29 @@
         /* ===== 🧭 사이드바 레이아웃 ===== */
         #sidebar { transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
         .nav-item {
-            width: 100%; display: flex; align-items: center; gap: 12px;
-            padding: 11px 18px; font-size: 12.5px; font-weight: 700; letter-spacing: -0.1px;
+            width: 100%; display: flex; align-items: center; gap: 10px;
+            padding: 9px 16px; font-size: 11.5px; font-weight: 700; letter-spacing: -0.1px;
             color: var(--text-muted); background: transparent; text-align: left;
             border-left: 3px solid transparent; cursor: pointer; position: relative;
             transition: background-color .13s, color .13s, border-color .13s;
         }
         .nav-item:hover { background: var(--bg-body); color: var(--text-main); }
-        .nav-item .material-symbols-outlined { font-size: 19px; flex-shrink: 0; }
+        .nav-item .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
         .nav-item.is-primary { color: #b7000c; }
         html.dark .nav-item.is-primary { color: #f87171; }
         .nav-item.is-primary:hover { background: rgba(183, 0, 12, 0.07); border-left-color: #b7000c; }
         /* 사이드바 뱃지 (숫자 알림) */
         .nav-count {
-            margin-left: auto; min-width: 20px; height: 18px; padding: 0 5px; border-radius: 4px;
-            font-size: 10px; font-weight: 800; color: #fff; background: #b7000c;
+            margin-left: auto; min-width: 18px; height: 16px; padding: 0 4px; border-radius: 4px;
+            font-size: 9.5px; font-weight: 800; color: #fff; background: #b7000c;
             display: flex; align-items: center; justify-content: center; line-height: 1;
         }
         .nav-section {
-            padding: 14px 18px 6px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.7px;
+            padding: 11px 16px 4px; font-size: 9px; font-weight: 800; letter-spacing: 0.7px;
             color: var(--text-muted); opacity: 0.55; text-transform: uppercase;
         }
-        .nav-divider { height: 1px; background: var(--border-color); margin: 6px 0; }
+        .nav-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+        .search-shortcut { font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-muted); }
 
         /* ===== 📊 대시보드 ===== */
         #dashboard-modal { z-index: 90; }
@@ -142,7 +143,14 @@
             background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
         .tag-pick.on { color: #fff; border-color: transparent; }
         .tag-pick.bm-pick.on { background: #dc2626; }
-    </style>
+    
+        /* 🔍 검색 모달 필터 칩 스타일 */
+        .search-filter-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
+        .search-filter-chip:hover { color: var(--text-main); border-color: var(--text-muted); }
+        .search-filter-chip.active { background: #b7000c; border-color: #b7000c; color: #fff; }
+        .search-item-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 10px; padding: 12px 14px; transition: all .15s; }
+        .search-item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: var(--border-color); transform: translateY(-1px); }
+</style>
 </head>
 <body class="flex min-h-screen">
 
@@ -165,6 +173,16 @@
 
     <!-- 메뉴 -->
     <nav class="flex-1 overflow-y-auto py-2 no-scrollbar">
+        <div class="px-3 py-1.5">
+            <button onclick="navAction('openSearchModal')" class="w-full flex items-center justify-between px-3 py-2 bg-background hover:bg-gray-200/60 dark:hover:bg-gray-800/80 border border-border rounded-lg text-text-muted text-[11.5px] font-bold transition-all shadow-sm">
+                <span class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[17px] text-primary">search</span>
+                    <span>일정 / 이력 검색</span>
+                </span>
+                <span class="search-shortcut hidden md:inline">Ctrl+K</span>
+            </button>
+        </div>
+
         <div class="nav-section">일정</div>
         <button class="nav-item is-primary" onclick="navAction('openModal')">
             <span class="material-symbols-outlined">add_circle</span> 일정 추가
@@ -233,6 +251,9 @@
     </button>
     <span class="text-lg font-black tracking-tighter text-primary">HITACHI</span>
     <div class="flex items-center gap-1">
+        <button onclick="openSearchModal()" class="p-2 text-text-main" title="일정 검색">
+            <span class="material-symbols-outlined text-[22px]">search</span>
+        </button>
         <button onclick="openActionDrawer()" class="relative p-2 text-text-main" title="Action List">
             <span class="material-symbols-outlined text-[22px]">task_alt</span>
             <span id="action-badge-m" class="act-badge hidden bg-primary"></span>
@@ -2954,6 +2975,408 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     initLineSelect();
     loadEventsFromSheet();
     setInterval(loadEventsFromSheet, 60000);
+
+    // ==========================================
+    // 🔍 통합 일정 및 작업 이력 검색 엔진
+    // ==========================================
+    let searchFilterType = 'all';
+    let currentSearchResults = [];
+
+    function openSearchModal(initialQuery = '') {
+        const modal = document.getElementById('search-modal');
+        modal.classList.remove('hidden');
+        const input = document.getElementById('search-input');
+        if (initialQuery) {
+            input.value = initialQuery;
+        }
+        setTimeout(() => {
+            input.focus();
+            if (initialQuery) performSearch();
+        }, 50);
+    }
+
+    function closeSearchModal() {
+        document.getElementById('search-modal').classList.add('hidden');
+    }
+
+    function clearSearchInput() {
+        const input = document.getElementById('search-input');
+        input.value = '';
+        input.focus();
+        performSearch();
+    }
+
+    function quickSearch(keyword) {
+        const input = document.getElementById('search-input');
+        input.value = keyword;
+        performSearch();
+    }
+
+    function setSearchFilter(type) {
+        searchFilterType = type;
+        document.querySelectorAll('.search-filter-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.filter === type);
+        });
+        performSearch();
+    }
+
+    // Ctrl+K 및 ESC 키보드 단축키 지원
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            const modal = document.getElementById('search-modal');
+            if (modal.classList.contains('hidden')) {
+                openSearchModal();
+            } else {
+                closeSearchModal();
+            }
+        }
+    });
+
+    // 검색어 하이라이트 헬퍼
+    function highlightKeyword(text, keyword) {
+        const safeText = escHtml(text || '');
+        if (!keyword || !keyword.trim()) return safeText;
+        const kw = keyword.trim().replace(/[-[\]{}()*+?.,\^$|#\s]/g, '\\$&');
+        const regex = new RegExp(`(${kw})`, 'gi');
+        return safeText.replace(regex, '<mark class="bg-amber-200 dark:bg-amber-800 text-text-main rounded px-0.5 font-bold">$1</mark>');
+    }
+
+    // 검색 실행 (연속 일정은 그룹으로 묶어 하나로 표시 + 단일 일정 표시)
+    function performSearch() {
+        const input = document.getElementById('search-input');
+        const query = (input.value || '').trim();
+        const clearBtn = document.getElementById('search-clear-btn');
+        const csvBtn = document.getElementById('search-csv-btn');
+        const summaryCount = document.getElementById('search-result-count');
+        const keywordBadge = document.getElementById('search-keyword-badge');
+        const container = document.getElementById('search-result-list');
+        const sortOrder = document.getElementById('search-sort').value;
+
+        clearBtn.classList.toggle('hidden', !query);
+
+        if (!query && searchFilterType === 'all') {
+            currentSearchResults = [];
+            csvBtn.classList.add('hidden');
+            summaryCount.innerText = '검색어를 입력하면 전체 이력을 검색합니다.';
+            keywordBadge.classList.add('hidden');
+            container.innerHTML = `
+                <div class="py-14 text-center text-text-muted flex flex-col items-center justify-center">
+                    <span class="material-symbols-outlined text-[48px] opacity-30 mb-2 text-primary">search</span>
+                    <p class="text-sm font-bold text-text-main mb-1">검색어를 입력하여 작업 이력을 찾아보세요</p>
+                    <p class="text-xs opacity-70 mb-4">설비 호기(MDIB701 등), 작업명(PM 등), 작업자, 태그 등으로 빠르게 조회할 수 있습니다.</p>
+                    <div class="flex items-center gap-2 flex-wrap justify-center max-w-md">
+                        <span class="text-[11px] font-bold opacity-60">추천 검색어:</span>
+                        <button onclick="quickSearch('PM')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">PM</button>
+                        <button onclick="quickSearch('Setup')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">Setup</button>
+                        <button onclick="quickSearch('MDIB701')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">MDIB701</button>
+                        <button onclick="quickSearch('P1F')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">P1F</button>
+                        <button onclick="quickSearch('부품교체')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">부품교체</button>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        const qLower = query.toLowerCase();
+
+        // 1) 그룹별로 묶어 연속 일정 정보 생성
+        const groups = new Map();
+        cachedEvents.forEach(ev => {
+            const d = String(ev.date || '');
+            if (!d || d.startsWith('config-')) return;
+            const k = groupKeyOf(ev.id);
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k).push(ev);
+        });
+
+        const itemsToSearch = [];
+        groups.forEach((list, gKey) => {
+            const dayEvents = list.filter(e => isDayDate(e.date)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+            const noteEvents = list.filter(e => !isDayDate(e.date));
+
+            if (dayEvents.length > 0) {
+                const rep = dayEvents[0];
+                const startDate = dayEvents[0].date;
+                const endDate = dayEvents[dayEvents.length - 1].date;
+                itemsToSearch.push({
+                    id: rep.id,
+                    gKey,
+                    isMulti: dayEvents.length > 1,
+                    totalDays: dayEvents.length,
+                    startDate,
+                    endDate,
+                    dateDisplay: dayEvents.length > 1 ? `${startDate} ~ ${endDate} (${dayEvents.length}일간)` : startDate,
+                    sortDate: startDate,
+                    line: rep.line,
+                    title: rep.title || '',
+                    worker: rep.worker || '',
+                    registeredBy: rep.registeredBy || '',
+                    category: rep.category || 'cat-normal',
+                    isVacation: rep.line === '🏖️ 휴가자' || rep.isVacation === 'true' || rep.isVacation === true,
+                    alarmOn: rep.alarmOn === true || rep.alarmOn === 'true',
+                    workTags: rep.workTags || '',
+                    rawEvents: dayEvents
+                });
+            }
+
+            noteEvents.forEach(rep => {
+                itemsToSearch.push({
+                    id: rep.id,
+                    gKey,
+                    isMulti: false,
+                    totalDays: 1,
+                    startDate: rep.date,
+                    endDate: rep.date,
+                    dateDisplay: rep.date.replace('note-', '').replace('-W', '년 ') + '주차 비고',
+                    sortDate: rep.date,
+                    line: rep.line,
+                    title: rep.title || '',
+                    worker: rep.worker || '',
+                    registeredBy: rep.registeredBy || '',
+                    category: rep.category || 'cat-normal',
+                    isVacation: rep.isVacation === 'true' || rep.isVacation === true,
+                    alarmOn: rep.alarmOn === true || rep.alarmOn === 'true',
+                    workTags: rep.workTags || '',
+                    rawEvents: [rep]
+                });
+            });
+        });
+
+        // 2) 필터링 조건 검사
+        let matched = itemsToSearch.filter(item => {
+            // 필터 탭 검사
+            if (searchFilterType === 'pm') {
+                const isPm = item.category === 'cat-pm' || item.workTags.includes('PM') || item.title.toLowerCase().includes('pm');
+                if (!isPm) return false;
+            } else if (searchFilterType === 'setup') {
+                const isSetup = item.category === 'cat-setup' || item.workTags.includes('SETUP') || item.title.toLowerCase().includes('setup');
+                if (!isSetup) return false;
+            } else if (searchFilterType === 'bm') {
+                const isBm = item.workTags.includes('BM') || item.title.toLowerCase().includes('bm') || item.title.toLowerCase().includes('trouble');
+                if (!isBm) return false;
+            } else if (searchFilterType === 'parts') {
+                const isParts = item.workTags.includes('PARTS') || item.title.includes('부품') || item.title.toLowerCase().includes('parts');
+                if (!isParts) return false;
+            } else if (searchFilterType === 'vacation') {
+                if (!item.isVacation) return false;
+            }
+
+            // 검색어 텍스트 매칭
+            if (!query) return true;
+
+            const textToSearch = `${item.title} ${item.worker} ${item.line} ${item.workTags} ${item.registeredBy} ${item.startDate} ${item.endDate}`.toLowerCase();
+            return textToSearch.includes(qLower);
+        });
+
+        // 3) 정렬
+        matched.sort((a, b) => {
+            if (sortOrder === 'recent') {
+                return String(b.sortDate).localeCompare(String(a.sortDate));
+            } else {
+                return String(a.sortDate).localeCompare(String(b.sortDate));
+            }
+        });
+
+        currentSearchResults = matched;
+        csvBtn.classList.remove('hidden');
+        summaryCount.innerHTML = `총 <b class="text-primary">${matched.length}건</b>의 일정/이력이 검색되었습니다.`;
+
+        // 4) 렌더링
+        if (matched.length === 0) {
+            container.innerHTML = `
+                <div class="py-14 text-center text-text-muted flex flex-col items-center justify-center">
+                    <span class="material-symbols-outlined text-[42px] opacity-30 mb-2">sentiment_dissatisfied</span>
+                    <p class="text-sm font-bold text-text-main mb-1">'${escHtml(query)}' 검색 결과가 없습니다.</p>
+                    <p class="text-xs opacity-70">다른 검색어를 입력하시거나 필터 조건을 확인해주세요.</p>
+                </div>`;
+            return;
+        }
+
+        const todayStr = toDateStr(new Date());
+
+        container.innerHTML = matched.map(item => {
+            const catBorder = item.isVacation ? 'border-l-blue-500' : (item.category === 'cat-pm' ? 'border-l-emerald-500' : (item.category === 'cat-urgent' ? 'border-l-amber-500' : (item.category === 'cat-setup' ? 'border-l-purple-500' : 'border-l-red-600')));
+            const catBadge = item.isVacation ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">🏖️ 휴가</span>' : (item.category === 'cat-pm' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">PM</span>' : (item.category === 'cat-urgent' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">긴급</span>' : (item.category === 'cat-setup' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Setup</span>' : '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">일반</span>')));
+
+            // 태그 칩
+            const tagChips = item.workTags ? item.workTags.split(',').map(t => {
+                const meta = TAG_META[t] || { label: t, color: '#6b7280' };
+                return `<span class="text-[9.5px] font-black px-1.5 py-0.5 rounded text-white" style="background:${meta.color}">${highlightKeyword(meta.label || t, query)}</span>`;
+            }).join(' ') : '';
+
+            // D-day 계산 (날짜형인 경우)
+            let dDayHtml = '';
+            if (isDayDate(item.startDate)) {
+                const diff = dayDiffLocal(todayStr, item.startDate);
+                if (diff === 0) dDayHtml = '<span class="text-[10px] font-black px-1.5 py-0.5 rounded bg-red-500 text-white">TODAY</span>';
+                else if (diff > 0 && diff <= 14) dDayHtml = `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">D-${diff}</span>`;
+                else if (diff < 0) dDayHtml = `<span class="text-[10px] font-bold text-text-muted opacity-70">${Math.abs(diff)}일 전</span>`;
+            }
+
+            return `
+                <div class="search-item-card ${catBorder} flex flex-col md:flex-row md:items-center justify-between gap-3" onclick="openEditModal('${escHtml(item.id)}')">
+                    <div class="flex-1 min-w-0 space-y-1.5">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs font-black text-text-main flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[15px] text-text-muted">calendar_today</span>
+                                ${item.dateDisplay}
+                            </span>
+                            ${dDayHtml}
+                            <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-background border border-border text-text-main">${highlightKeyword(item.line, query)}</span>
+                            ${catBadge}
+                            ${tagChips}
+                        </div>
+                        <div class="text-sm md:text-base font-bold text-text-main break-words">
+                            ${item.alarmOn ? '<span class="material-symbols-outlined text-[14px] text-amber-500 align-middle mr-1" title="알림설정 켜짐">notifications</span>' : ''}
+                            ${highlightKeyword(item.title, query)}
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-text-muted flex-wrap">
+                            ${item.worker ? `<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">person</span>작업자: <b class="text-text-main">${highlightKeyword(item.worker, query)}</b></span>` : ''}
+                            ${item.registeredBy ? `<span class="flex items-center gap-1 opacity-75"><span class="material-symbols-outlined text-[14px]">edit</span>등록자: ${highlightKeyword(item.registeredBy, query)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 self-end md:self-center shrink-0" onclick="event.stopPropagation()">
+                        ${isDayDate(item.startDate) ? `
+                        <button type="button" onclick="jumpToEventDate('${item.startDate}')" class="px-2.5 py-1.5 text-xs font-bold text-text-muted hover:text-primary hover:bg-background border border-border rounded-lg flex items-center gap-1 transition-colors" title="해당 캘린더 날짜로 이동">
+                            <span class="material-symbols-outlined text-[16px]">event</span> 달력 이동
+                        </button>` : ''}
+                        <button type="button" onclick="openEditModal('${escHtml(item.id)}')" class="px-3 py-1.5 text-xs font-bold bg-primary text-white hover:opacity-90 rounded-lg flex items-center gap-1 transition-opacity">
+                            <span class="material-symbols-outlined text-[16px]">edit</span> 상세/수정
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // 검색 결과 항목에서 캘린더의 해당 월로 점프
+    function jumpToEventDate(dateStr) {
+        if (!dateStr || !isDayDate(dateStr)) return;
+        const p = dateStr.split('-').map(Number);
+        currentYear = p[0];
+        currentMonth = p[1];
+        closeSearchModal();
+        renderCalendarUI();
+        showToast(`${currentYear}년 ${currentMonth}월 캘린더로 이동했습니다.`, 'success');
+    }
+
+    // 검색 결과 전용 CSV 다운로드
+    function downloadSearchResultsCSV() {
+        if (!currentSearchResults || currentSearchResults.length === 0) return alert('다운로드할 검색 결과가 없습니다.');
+        const headers = ["ID", "시작일", "마감일", "일수", "라인", "제목", "카테고리", "작업자", "등록자", "작업유형태그", "알림설정"];
+        
+        function toCsvCell(val) {
+            const str = String(val == null ? '' : val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+
+        const rows = currentSearchResults.map(it => [
+            toCsvCell(it.id),
+            toCsvCell(it.startDate),
+            toCsvCell(it.endDate),
+            toCsvCell(it.totalDays),
+            toCsvCell(it.line),
+            toCsvCell(it.title),
+            toCsvCell(it.category),
+            toCsvCell(it.worker),
+            toCsvCell(it.registeredBy),
+            toCsvCell(it.workTags),
+            toCsvCell(it.alarmOn ? 'ON' : 'OFF')
+        ].join(','));
+
+        const csvContent = [headers.map(toCsvCell).join(','), ...rows].join('\n');
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        const query = (document.getElementById('search-input').value || '검색결과').trim();
+        link.setAttribute("download", `ScheduleSearch_${query}_${toDateStr(new Date())}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
 </script>
+
+<!-- 🔍 통합 일정/작업 이력 검색 모달 -->
+<div id="search-modal" class="fixed inset-0 bg-black/60 hidden z-[95] flex items-start md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full h-full md:h-[88vh] md:max-w-4xl md:rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+        
+        <!-- 검색 상단 바 -->
+        <div class="p-4 md:p-5 border-b border-border bg-surface flex flex-col gap-3 flex-shrink-0">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[24px]">manage_search</span>
+                    <h3 class="text-base md:text-lg font-black text-text-main">일정 및 작업 이력 검색</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadSearchResultsCSV()" id="search-csv-btn" class="hidden text-xs font-bold text-text-muted hover:text-primary border border-border hover:border-primary px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors" title="검색 결과 CSV 다운로드">
+                        <span class="material-symbols-outlined text-[16px]">download</span> CSV
+                    </button>
+                    <button onclick="closeSearchModal()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
+                </div>
+            </div>
+
+            <!-- 검색창 인풋 -->
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-[20px]">search</span>
+                <input type="text" id="search-input" placeholder="작업명, 설비호기(MDIB701 등), 작업자, 태그(PM 등) 검색..." 
+                    class="w-full bg-background border border-border text-text-main text-sm md:text-base font-bold rounded-xl pl-11 pr-10 py-3 outline-none focus:border-primary transition-colors shadow-inner"
+                    oninput="performSearch()" onkeydown="if(event.key==='Escape') closeSearchModal()">
+                <button id="search-clear-btn" onclick="clearSearchInput()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-500 p-1">
+                    <span class="material-symbols-outlined text-[18px]">cancel</span>
+                </button>
+            </div>
+
+            <!-- 빠른 필터 칩 & 정렬 -->
+            <div class="flex items-center justify-between flex-wrap gap-2 pt-1">
+                <!-- 분류 필터 -->
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    <button type="button" class="search-filter-chip active" data-filter="all" onclick="setSearchFilter('all')">전체</button>
+                    <button type="button" class="search-filter-chip" data-filter="pm" onclick="setSearchFilter('pm')">🟢 PM</button>
+                    <button type="button" class="search-filter-chip" data-filter="setup" onclick="setSearchFilter('setup')">🟣 Setup</button>
+                    <button type="button" class="search-filter-chip" data-filter="bm" onclick="setSearchFilter('bm')">🔴 BM/Trouble</button>
+                    <button type="button" class="search-filter-chip" data-filter="parts" onclick="setSearchFilter('parts')">🔵 부품교체</button>
+                    <button type="button" class="search-filter-chip" data-filter="vacation" onclick="setSearchFilter('vacation')">🏖️ 휴가</button>
+                </div>
+
+                <!-- 정렬 및 기간 -->
+                <div class="flex items-center gap-2 ml-auto">
+                    <select id="search-sort" onchange="performSearch()" class="bg-background border border-border text-text-main text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none">
+                        <option value="recent">최신순 (내림차순)</option>
+                        <option value="oldest">과거순 (오름차순)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 검색 요약 헤더 -->
+        <div id="search-summary-bar" class="px-5 py-2.5 bg-background border-b border-border flex items-center justify-between text-xs font-bold text-text-muted flex-shrink-0">
+            <span id="search-result-count">검색어를 입력하면 전체 이력을 검색합니다.</span>
+            <span id="search-keyword-badge" class="hidden text-primary font-black"></span>
+        </div>
+
+        <!-- 검색 결과 리스트 -->
+        <div id="search-result-list" class="flex-1 overflow-y-auto p-4 md:p-5 space-y-2.5">
+            <!-- 검색 안내 초기 화면 -->
+            <div class="py-14 text-center text-text-muted flex flex-col items-center justify-center">
+                <span class="material-symbols-outlined text-[48px] opacity-30 mb-2 text-primary">search</span>
+                <p class="text-sm font-bold text-text-main mb-1">검색어를 입력하여 작업 이력을 찾아보세요</p>
+                <p class="text-xs opacity-70 mb-4">설비 호기, 작업명, 작업자 이름, 작업유형 태그 등으로 빠르게 조회할 수 있습니다.</p>
+                <div class="flex items-center gap-2 flex-wrap justify-center max-w-md">
+                    <span class="text-[11px] font-bold opacity-60">추천 검색어:</span>
+                    <button onclick="quickSearch('PM')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">PM</button>
+                    <button onclick="quickSearch('Setup')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">Setup</button>
+                    <button onclick="quickSearch('MDIB701')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">MDIB701</button>
+                    <button onclick="quickSearch('P1F')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">P1F</button>
+                    <button onclick="quickSearch('부품교체')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">부품교체</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
 </body>
 </html>
