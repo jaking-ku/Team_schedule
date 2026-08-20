@@ -1256,14 +1256,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         
         // modal-line 옵션은 initLineSelect()에서 한 번만 초기화 (여기서 하면 수정 중 타이밍 버그 발생)
         
-        // 💡 완벽하게 수정된 드래그 앤 드롭 (오조작 및 미스터치 방지 딜레이 적용)
+        // 💡 완벽하게 수정된 드래그 앤 드롭
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
                 group: 'shared', 
                 animation: 150, 
                 ghostClass: 'opacity-50',
-                delay: 150, // 150ms 꾹 눌러야 드래그 시작 (단순 클릭/스크롤 오조작 완전 차단)
-                delayOnTouchOnly: false,
                 // 연속 일정 막대(.span-card)와 자리표시자(.span-area)는 드래그 대상에서 제외
                 draggable: '.event-card:not(.span-card)',
                 onEnd: function(evt) {
