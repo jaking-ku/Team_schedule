@@ -1088,15 +1088,70 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     }
 
 // [Module: google_sheets.js]
-// ===== ☁️ 시트 쓰기 요청 직렬화 (경쟁 상태 방지) =====
-    // 여러 요청을 동시에 보내면 각 요청이 '같은 시점'의 시트를 읽어 행 번호를 계산하므로
-    // 삭제·추가가 서로 밀려 일부만 반영되는 문제가 발생한다. → 반드시 한 건씩 순서대로 처리.
+// ===== ☁️ 시트 쓰기 요청 직렬화 및 오프라인 재시도 큐 (데이터 유실 방지) =====
+    const PENDING_QUEUE_KEY = 'hitachi_pending_sheet_writes';
     let sheetQueue = Promise.resolve();
     let pendingWrites = 0;
     let syncTimer = null;
+    let isFlushingQueue = false;
+
+    function getPendingQueue() {
+        try {
+            return JSON.parse(localStorage.getItem(PENDING_QUEUE_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function savePendingQueue(queue) {
+        try {
+            localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
+        } catch (e) {
+            console.error('Pending queue 로컬 저장 실패:', e);
+        }
+    }
 
     function setSyncBadge(html) {
         document.querySelectorAll('.cloud-sync-badge').forEach(b => { b.innerHTML = html; });
+    }
+
+    // 서버로 단일 페이로드 전송 (순수 HTTP 요청)
+    async function executeSheetRequest(payload) {
+        const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
+        const res = await fetch(noCacheUrl, { 
+            method: "POST", 
+            headers: { 'Content-Type': 'text/plain' },
+            cache: "no-store", 
+            body: JSON.stringify(payload) 
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return true;
+    }
+
+    // 미전송 대기 큐 순차 전송 (네트워크 복구 시 자동 반영)
+    async function flushPendingQueue() {
+        if (!SCRIPT_URL.startsWith("https") || isFlushingQueue) return;
+        const queue = getPendingQueue();
+        if (queue.length === 0) return;
+
+        isFlushingQueue = true;
+        setSyncBadge(`<span class="material-symbols-outlined text-[16px] animate-spin text-amber-500">sync</span> 미저장 데이터 복구 중 (${queue.length})`);
+
+        while (queue.length > 0) {
+            const item = queue[0];
+            try {
+                await executeSheetRequest(item);
+                queue.shift();
+                savePendingQueue(queue);
+            } catch (e) {
+                console.warn('대기 큐 재전송 일시 실패:', e);
+                break; // 통신 장애 지속 시 다음 주기에 재시도
+            }
+        }
+        isFlushingQueue = false;
+        if (queue.length === 0) {
+            showToast('미전송 데이터가 서버에 정상 동기화되었습니다.', 'success');
+        }
     }
 
     function sendToSheet(payload) {
@@ -1107,19 +1162,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
 
         sheetQueue = sheetQueue.then(async () => {
             try {
-                const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
-                // ⚠️ await 필수: 응답을 받은 뒤에 다음 요청을 보내야 행 번호가 어긋나지 않음 (text/plain으로 CORS 프리플라이트 방지)
-                const res = await fetch(noCacheUrl, { 
-                    method: "POST", 
-                    headers: { 'Content-Type': 'text/plain' },
-                    cache: "no-store", 
-                    body: JSON.stringify(payload) 
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                // 이전 대기 큐가 있다면 먼저 소진 시도
+                await flushPendingQueue();
+                await executeSheetRequest(payload);
             } catch (e) {
-                console.error('시트 저장 실패:', payload, e);
-                setSyncBadge('<span class="material-symbols-outlined text-[13px] text-red-500">cloud_off</span> 저장 실패');
-                showToast('구글 시트 저장에 실패했습니다. 네트워크 연결을 확인하세요.', 'error');
+                console.error('시트 저장 일시 실패 (로컬 대기 큐에 안전 보관):', payload, e);
+                const queue = getPendingQueue();
+                queue.push(payload);
+                savePendingQueue(queue);
+
+                setSyncBadge('<span class="material-symbols-outlined text-[13px] text-amber-500">cloud_sync</span> 오프라인 보관됨');
+                showToast('네트워크 지연으로 저장이 대기 큐에 보관되었습니다. 연결 복구 시 자동 반영됩니다.', 'info');
             } finally {
                 pendingWrites--;
                 if (pendingWrites > 0) {
@@ -1134,7 +1187,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     function syncAfterWrites() {
         sheetQueue.then(() => {
             clearTimeout(syncTimer);
-            syncTimer = setTimeout(loadEventsFromSheet, 400);
+            syncTimer = setTimeout(loadEventsFromSheet, 500);
         });
     }
 
@@ -1496,8 +1549,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
 
     // ☁️ 데이터 로딩 및 동기화 (서버에서 새로 받아올 때만 호출)
     async function loadEventsFromSheet() {
-        // 저장 요청이 남아 있으면 읽지 않는다 (반쯤 반영된 상태를 화면에 덮어쓰는 것을 방지)
-        if (pendingWrites > 0) return;
+        // 저장 요청이나 미전송 큐가 남아 있으면 서버에서 덮어쓰지 않는다 (Silent Rollback 완벽 방지)
+        const pendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
+        if (pendingWrites > 0 || pendingQueue.length > 0) {
+            if (pendingQueue.length > 0 && typeof flushPendingQueue === 'function') {
+                flushPendingQueue();
+            }
+            return;
+        }
 
         setSyncBadge('<span class="material-symbols-outlined text-[13px] animate-spin">sync</span> 동기화 중...');
 
@@ -3078,23 +3137,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     }
 
     function sendEquipToSheet(payload) {
-        if (!SCRIPT_URL.startsWith("https")) return Promise.resolve();
-        // 일정 저장과 같은 큐를 사용해 동시 요청으로 행이 밀리는 문제를 방지
-        pendingWrites++;
-        sheetQueue = sheetQueue.then(async () => {
-            try {
-                await fetch(SCRIPT_URL + "?t=" + new Date().getTime(), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
-                });
-            } catch (err) {
-                console.error('설비 데이터 전송 실패:', err);
-            } finally {
-                pendingWrites--;
-            }
-        });
-        return sheetQueue;
+        // 공통 sendToSheet를 사용하여 직렬화 및 오프라인 재시도 큐 혜택을 함께 받음
+        return sendToSheet(payload);
     }
 
     function renderEquipTable() {
@@ -3104,17 +3148,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
             return;
         }
         tbody.innerHTML = cachedEquipments.map(eq => `
-            <tr class="border-b border-border/50 align-middle" data-equip-id="${eq.id}">
+            <tr class="border-b border-border/50 align-middle" data-equip-id="${escHtml(eq.id)}">
                 <td class="py-2 px-2">
-                    <input type="text" value="${eq.lineName || ''}" placeholder="예: P1F-01"
+                    <input type="text" value="${escHtml(eq.lineName || '')}" placeholder="예: P1F-01"
                         class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-2 outline-none"
-                        onchange="updateEquipField('${eq.id}', 'lineName', this.value)">
+                        onchange="updateEquipField('${escHtml(eq.id)}', 'lineName', this.value)">
                 </td>
                 <td class="py-2 px-2">${renderEquipDateCell(eq.id, 'ipuBracket', eq.ipuBracket)}</td>
                 <td class="py-2 px-2">${renderEquipDateCell(eq.id, 'dvr', eq.dvr)}</td>
                 <td class="py-2 px-2">${renderEquipDateCell(eq.id, 'chemFilter', eq.chemFilter)}</td>
                 <td class="py-2 px-2 text-center">
-                    <button onclick="deleteEquipRow('${eq.id}')" class="text-text-muted hover:text-red-500" title="설비 삭제">
+                    <button onclick="deleteEquipRow('${escHtml(eq.id)}')" class="text-text-muted hover:text-red-500" title="설비 삭제">
                         <span class="material-symbols-outlined text-[20px]">delete</span>
                     </button>
                 </td>
@@ -3124,15 +3168,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
 
     function renderEquipDateCell(id, field, value) {
         const none = isEquipNone(value);
+        const safeVal = none ? '' : (value || '');
         return `
             <div class="flex items-center gap-1.5">
                 <label class="flex items-center gap-1 text-xs text-text-muted cursor-pointer select-none">
                     <input type="checkbox" ${none ? 'checked' : ''} class="w-3.5 h-3.5 accent-gray-400 cursor-pointer"
-                        onchange="toggleEquipNone('${id}', '${field}', this.checked)"> X
+                        onchange="toggleEquipNone('${escHtml(id)}', '${escHtml(field)}', this.checked)"> X
                 </label>
-                <input type="date" value="${none ? '' : value}" ${none ? 'disabled' : ''}
+                <input type="date" value="${escHtml(safeVal)}" ${none ? 'disabled' : ''}
                     class="flex-1 bg-background border border-border text-text-main text-xs rounded-lg p-2 outline-none disabled:opacity-40"
-                    onchange="updateEquipField('${id}', '${field}', this.value)">
+                    onchange="updateEquipField('${escHtml(id)}', '${escHtml(field)}', this.value)">
             </div>
         `;
     }
@@ -3158,8 +3203,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         if (checked) {
             eq[field] = EQUIP_NONE;
         } else {
-            // 체크 해제 시 오늘 날짜를 기본값으로 채워 'X' 판정에서 벗어나도록 함
-            const todayStr = new Date().toISOString().slice(0, 10);
+            // 체크 해제 시 로컬 타임존 기준 오늘 날짜 채움 (KST 오전 0~9시 날짜 역전 방지)
+            const todayStr = toDateStr(new Date());
             eq[field] = todayStr;
         }
         renderEquipTable();
