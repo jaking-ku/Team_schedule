@@ -1256,24 +1256,44 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         
         // modal-line 옵션은 initLineSelect()에서 한 번만 초기화 (여기서 하면 수정 중 타이밍 버그 발생)
         
-        // 💡 완벽하게 수정된 드래그 앤 드롭
+        // 💡 완벽하게 수정된 드래그 앤 드롭 (오조작 및 미스터치 방지 딜레이 적용)
         document.querySelectorAll('.dropzone').forEach(zone => {
             new Sortable(zone, {
-                group: 'shared', animation: 150, ghostClass: 'opacity-50',
+                group: 'shared', 
+                animation: 150, 
+                ghostClass: 'opacity-50',
+                delay: 150, // 150ms 꾹 눌러야 드래그 시작 (단순 클릭/스크롤 오조작 완전 차단)
+                delayOnTouchOnly: false,
                 // 연속 일정 막대(.span-card)와 자리표시자(.span-area)는 드래그 대상에서 제외
                 draggable: '.event-card:not(.span-card)',
                 onEnd: function(evt) {
-                    const item = evt.item; const to = evt.to;
+                    const item = evt.item; 
+                    const to = evt.to;
+                    const from = evt.from;
+                    
+                    // 위치 변동이 없으면 저장하지 않음
+                    if (to === from && evt.oldIndex === evt.newIndex) return;
+
                     const isVac = to.dataset.line === "🏖️ 휴가자";
                     const eventId = item.dataset.id;
 
                     let existingEvent = cachedEvents.find(e => e.id === eventId);
                     if (existingEvent) {
-                        existingEvent.date = to.dataset.date;
-                        existingEvent.line = to.dataset.line;
+                        const oldDate = existingEvent.date;
+                        const oldLine = existingEvent.line;
+                        const newDate = to.dataset.date;
+                        const newLine = to.dataset.line;
+
+                        if (oldDate === newDate && oldLine === newLine) return;
+
+                        existingEvent.date = newDate;
+                        existingEvent.line = newLine;
                         existingEvent.isVacation = isVac;
                         item.className = `event-card ${isVac ? 'vacation' : (existingEvent.category || 'cat-normal')}`;
                         
+                        // 로컬 스냅샷 즉시 보존
+                        saveLocalEventsSnapshot();
+
                         sendToSheet({ 
                             action: 'update', id: existingEvent.id, date: existingEvent.date, 
                             line: existingEvent.line, title: existingEvent.title, 
@@ -1281,6 +1301,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
                             registeredBy: existingEvent.registeredBy, alarmOn: existingEvent.alarmOn,
                             workTags: existingEvent.workTags || ''
                         });
+
+                        showToast(`'${existingEvent.title}' 일정이 ${newDate} (${newLine})로 이동되었습니다.`, 'info');
                         // 자리표시자 순서가 흐트러질 수 있으므로 레이아웃 재계산
                         setTimeout(renderCalendarUI, 0);
                     }
@@ -1288,6 +1310,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
             });
         });
     }
+
+    // 🛡️ 페이지 이탈 시 미전송 데이터 유실 방지 알림
+    window.addEventListener('beforeunload', (e) => {
+        const pendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
+        if (pendingWrites > 0 || pendingQueue.length > 0) {
+            e.preventDefault();
+            e.returnValue = '서버에 저장 중인 일정이 있습니다. 지금 닫으시면 데이터가 유실될 수 있습니다.';
+            return e.returnValue;
+        }
+    });
 
     // 📱 모바일 렌더링 (구글 캘린더형)
     function generateCalendarMobile() {
@@ -1564,6 +1596,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
             const url = SCRIPT_URL + "?t=" + new Date().getTime();
             const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
             cachedEvents = extractTeamConfig(await res.json());
+            saveLocalEventsSnapshot();
 
             renderCalendarUI();
 
@@ -1752,7 +1785,46 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
 
     function closeModal() { document.getElementById('event-modal').classList.add('hidden'); }
 
-    // 🚀 저장 및 즉시 반영 기능 (Optimistic UI)
+    // ===== 💾 로컬 스냅샷 및 휴지통 (Zero Data Loss 안전망) =====
+    const EVENTS_SNAPSHOT_KEY = 'hitachi_events_cache_snapshot';
+    const EVENTS_TRASH_KEY = 'hitachi_deleted_events_trash';
+
+    function saveLocalEventsSnapshot() {
+        try {
+            localStorage.setItem(EVENTS_SNAPSHOT_KEY, JSON.stringify(cachedEvents));
+        } catch (e) {
+            console.error('로컬 스냅샷 저장 실패:', e);
+        }
+    }
+
+    function loadLocalEventsSnapshot() {
+        try {
+            const raw = localStorage.getItem(EVENTS_SNAPSHOT_KEY);
+            if (raw) {
+                const data = JSON.parse(raw);
+                if (Array.isArray(data) && data.length > 0) return data;
+            }
+        } catch (e) {
+            console.error('로컬 스냅샷 로드 실패:', e);
+        }
+        return null;
+    }
+
+    function saveDeletedToTrash(eventsToDelete) {
+        try {
+            const trash = JSON.parse(localStorage.getItem(EVENTS_TRASH_KEY) || '[]');
+            const stamp = toDateStr(new Date());
+            eventsToDelete.forEach(ev => {
+                trash.unshift({ ...ev, deletedAt: stamp });
+            });
+            // 최대 100건까지 안전 백업 보관
+            localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify(trash.slice(0, 100)));
+        } catch (e) {
+            console.error('휴지통 보관 실패:', e);
+        }
+    }
+
+    // 🚀 저장 및 즉시 반영 기능 (Optimistic UI + 로컬 스냅샷 2중 보존)
     function saveEventFromModal() {
         const id = document.getElementById('modal-event-id').value;
         const title = document.getElementById('modal-title').value.trim();
@@ -1787,13 +1859,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
                 const byDate = {};
                 groupEvents.forEach(e => { byDate[e.date] = e; });
 
-                // (1) 범위에서 빠진 날짜 삭제
-                groupEvents.forEach(e => {
-                    if (!desired.includes(e.date)) {
+                // (1) 범위에서 빠진 날짜 삭제 (휴지통 보관)
+                const toDelete = groupEvents.filter(e => !desired.includes(e.date));
+                if (toDelete.length > 0) {
+                    saveDeletedToTrash(toDelete);
+                    toDelete.forEach(e => {
                         sendToSheet({ action: 'delete', id: e.id });
                         cachedEvents = cachedEvents.filter(x => x.id !== e.id);
-                    }
-                });
+                    });
+                }
 
                 // (2) 기존 날짜는 갱신, 새 날짜는 같은 그룹키로 추가
                 desired.forEach(dStr => {
@@ -1829,6 +1903,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
             }
         }
 
+        // 로컬 스냅샷 즉시 동기화
+        saveLocalEventsSnapshot();
+
         // 로컬 데이터로 즉시 화면 다시 그리기
         renderCalendarUI();
 
@@ -1836,7 +1913,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         syncAfterWrites();
     }
 
-    // 🚀 삭제 및 즉시 반영
+    // 🚀 삭제 및 즉시 반영 (휴지통 안전 보관)
     function deleteEvent(e, btn) { 
         e.stopPropagation(); 
         const host = btn.closest('[data-id]');
@@ -1849,15 +1926,20 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
 
         const msg = isMulti
             ? `연속 일정입니다. ${group[0].date} ~ ${group[group.length - 1].date} (${group.length}일) 전체를 삭제하시겠습니까?`
-            : '삭제하시겠습니까?';
+            : `'${target ? target.title : '일정'}'을 삭제하시겠습니까?`;
         if (!confirm(msg)) return;
 
-        const ids = isMulti ? group.map(x => x.id) : [id];
+        const toDeleteList = isMulti ? group : (target ? [target] : [{ id }]);
+        saveDeletedToTrash(toDeleteList);
+
+        const ids = toDeleteList.map(x => x.id);
         // 한 건씩 순서대로 전송 (sendToSheet 내부 큐가 순서를 보장)
         ids.forEach(i => sendToSheet({ action: 'delete', id: i }));
         cachedEvents = cachedEvents.filter(ev => !ids.includes(ev.id));
 
+        saveLocalEventsSnapshot();
         renderCalendarUI();
+        showToast('일정이 삭제되었습니다. (로컬 백업에 안전 보관됨)', 'info');
         syncAfterWrites();
     }
 
@@ -3249,10 +3331,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         sel.innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
     }
 
-    // 초기 렌더링 실행
+    // 초기 렌더링 실행 (로컬 스냅샷 우선 복원 후 서버 동기화로 0ms 렌더링 및 유실 방어)
     checkUsername();
     renderNotifyControl();
     initLineSelect();
+
+    const localSnap = typeof loadLocalEventsSnapshot === 'function' ? loadLocalEventsSnapshot() : null;
+    if (localSnap && localSnap.length > 0) {
+        cachedEvents = localSnap;
+        renderCalendarUI();
+    }
+
     loadEventsFromSheet();
     setInterval(loadEventsFromSheet, 60000);
 
