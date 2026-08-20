@@ -21,7 +21,7 @@
         }
     </script>
     <style>
-        :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; --calendar-zoom: 1; }
+:root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; --calendar-zoom: 1; }
         html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
         body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
         
@@ -150,7 +150,86 @@
         .search-filter-chip.active { background: #b7000c; border-color: #b7000c; color: #fff; }
         .search-item-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 10px; padding: 12px 14px; transition: all .15s; }
         .search-item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: var(--border-color); transform: translateY(-1px); }
-</style>
+
+        /* ===== 🛡️ 무사고 카운터 배지 스타일 ===== */
+        .safety-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.14) 100%);
+            border: 1.5px solid rgba(16, 185, 129, 0.35);
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+        }
+        html.dark .safety-badge {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.35) 100%);
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .safety-badge:hover {
+            transform: translateY(-1px);
+            border-color: rgba(16, 185, 129, 0.65);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+        .safety-pulse-wrapper {
+            position: relative;
+            display: flex;
+            height: 8px;
+            width: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+        .safety-pulse-ping {
+            position: absolute;
+            display: inline-flex;
+            height: 100%;
+            width: 100%;
+            border-radius: 9999px;
+            background-color: #10b981;
+            opacity: 0.75;
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        .safety-pulse-dot {
+            position: relative;
+            display: inline-flex;
+            border-radius: 9999px;
+            height: 7px;
+            width: 7px;
+            background-color: #059669;
+        }
+        html.dark .safety-pulse-dot {
+            background-color: #34d399;
+        }
+        .safety-icon {
+            font-size: 18px !important;
+            color: #059669;
+        }
+        html.dark .safety-icon {
+            color: #34d399;
+        }
+        .safety-label {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #065f46;
+            letter-spacing: -0.2px;
+        }
+        html.dark .safety-label {
+            color: #a7f3d0;
+        }
+        .safety-days {
+            font-size: 14px;
+            font-weight: 900;
+            color: #047857;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.3px;
+        }
+        html.dark .safety-days {
+            color: #6ee7b7;
+        }
+    </style>
 </head>
 <body class="flex min-h-screen">
 
@@ -266,12 +345,26 @@
 
 <main class="flex-1 p-3 md:p-7 flex flex-col w-full min-w-0">
     <div class="flex flex-col md:flex-row items-center justify-between mb-4 md:mb-8 gap-4">
-        <div class="flex items-center justify-between w-full md:w-auto gap-4">
-            <h2 class="text-xl md:text-3xl font-black flex items-center gap-2 md:gap-4">
-                <button onclick="changeMonth(-1)" class="p-1"><span class="material-symbols-outlined text-[28px]">chevron_left</span></button>
-                <span id="month-title" class="min-w-[100px] text-center"></span>
-                <button onclick="changeMonth(1)" class="p-1"><span class="material-symbols-outlined text-[28px]">chevron_right</span></button>
-            </h2>
+        <div class="flex items-center justify-between w-full md:w-auto gap-3 md:gap-5 flex-wrap">
+            <div class="flex items-center gap-3 md:gap-5 flex-wrap">
+                <h2 class="text-xl md:text-3xl font-black flex items-center gap-2 md:gap-4">
+                    <button onclick="changeMonth(-1)" class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined text-[28px]">chevron_left</span></button>
+                    <span id="month-title" class="min-w-[100px] text-center"></span>
+                    <button onclick="changeMonth(1)" class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined text-[28px]">chevron_right</span></button>
+                </h2>
+                <!-- 🛡️ 안전 무사고 카운터 배지 위젯 -->
+                <div id="safety-counter-widget" onclick="openSafetyDateModal()" class="safety-badge cursor-pointer group" title="클릭하여 무사고 기준일 조회 및 변경">
+                    <div class="safety-pulse-wrapper">
+                        <span class="safety-pulse-ping"></span>
+                        <span class="safety-pulse-dot"></span>
+                    </div>
+                    <span class="material-symbols-outlined safety-icon">health_and_safety</span>
+                    <div class="flex items-center gap-1.5 leading-none">
+                        <span class="safety-label">무사고 :</span>
+                        <span id="safety-days-count" class="safety-days">1일</span>
+                    </div>
+                </div>
+            </div>
             <div class="hidden md:flex items-center bg-surface border border-border rounded-lg">
                 <button onclick="changeZoom(-0.1)" class="px-2 py-1 text-text-muted hover:text-primary"><span class="material-symbols-outlined text-[20px]">zoom_out</span></button>
                 <span id="zoom-display" class="text-[11px] font-bold w-10 text-center">100%</span>
@@ -645,8 +738,53 @@
     </div>
 </div>
 
+<!-- 🛡️ 무사고 기준일 설정 및 관리 모달 -->
+<div id="safety-modal" class="fixed inset-0 bg-black/60 hidden z-[85] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-border">
+        <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 class="text-base font-black flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-emerald-600">health_and_safety</span> 무사고 일수 관리
+            </h3>
+            <button onclick="closeSafetyDateModal()" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-6">
+            <div class="text-center mb-5">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-3 shadow-inner">
+                    <span class="material-symbols-outlined text-[32px]">verified_user</span>
+                </div>
+                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight" id="safety-modal-preview">무사고 1일차</div>
+                <p class="text-xs text-text-muted mt-1.5 leading-relaxed">평가4부의 안전한 무재해 사업장 달성을 기원합니다.</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-text-muted mb-1.5">무사고 시작 기준일</label>
+                    <input type="date" id="safety-start-date-input" class="w-full bg-background border border-border text-text-main text-sm font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500 transition-colors" onchange="previewSafetyDays()">
+                </div>
+                <div class="p-3 bg-background rounded-xl border border-border text-[11.5px] text-text-muted space-y-1">
+                    <div class="flex justify-between font-bold">
+                        <span>현재 설정 기준일:</span>
+                        <span id="safety-current-start-label" class="text-text-main">2026-08-20 (1일차)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>오늘 날짜:</span>
+                        <span id="safety-today-label" class="text-text-main"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-border bg-background/50 flex justify-between items-center gap-2">
+            <button onclick="resetSafetyStartDate()" class="text-xs font-bold text-red-500 hover:underline px-1 py-1">2026-08-20로 리셋</button>
+            <div class="flex gap-2">
+                <button onclick="closeSafetyDateModal()" class="px-4 py-2 text-xs font-bold text-text-muted hover:text-text-main">취소</button>
+                <button onclick="saveSafetyStartDate()" class="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-all">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
-    // ★ 여기에 웹앱 URL을 입력하세요!
+// [Module: config.js]
+// ★ 여기에 웹앱 URL을 입력하세요!
         // 🛡️ XSS 방어용 HTML 이스케이프 함수
     function escHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -949,7 +1087,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         document.getElementById('zoom-display').innerText = Math.round(currentZoom * 100) + '%';
     }
 
-    // ===== ☁️ 시트 쓰기 요청 직렬화 (경쟁 상태 방지) =====
+// [Module: google_sheets.js]
+// ===== ☁️ 시트 쓰기 요청 직렬화 (경쟁 상태 방지) =====
     // 여러 요청을 동시에 보내면 각 요청이 '같은 시점'의 시트를 읽어 행 번호를 계산하므로
     // 삭제·추가가 서로 밀려 일부만 반영되는 문제가 발생한다. → 반드시 한 건씩 순서대로 처리.
     let sheetQueue = Promise.resolve();
@@ -1171,7 +1310,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         container.appendChild(noteBox);
     }
 
-    // ===== 🔗 연속 일정 그룹 관리 =====
+// [Module: calendar.js]
+// ===== 🔗 연속 일정 그룹 관리 =====
     // 같은 일정에서 파생된 날짜들은 id를 "<그룹키>__<날짜>" 형태로 만들어 하나로 묶는다.
     // (구글 시트 컬럼 추가 없이 그룹을 표현하므로 Apps Script 수정 불필요)
     function groupKeyOf(id) { return String(id || '').split('__')[0]; }
@@ -1211,6 +1351,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     // 🖥️ 화면만 다시 그리기 (네트워크 요청 없음 - 이미 받아온 cachedEvents 사용)
     function renderCalendarUI() {
         document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
+        updateSafetyCounterDisplay();
         generateCalendarPC();
         generateCalendarMobile();
         renderEventsToPC();
@@ -1847,7 +1988,98 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     }
     // ===========================
 
-    // ===== ✅ Action Required List =====
+    // ===== 🛡️ 무사고 일수 계산 및 관리 =====
+    const DEFAULT_SAFETY_START_DATE = '2026-08-20';
+
+    function getSafetyStartDateStr() {
+        return localStorage.getItem('safety_start_date') || DEFAULT_SAFETY_START_DATE;
+    }
+
+    function calculateSafetyDays(startDateStr) {
+        const s = startDateStr || getSafetyStartDateStr();
+        const parts = s.split('-').map(Number);
+        const startObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        const now = new Date();
+        const todayObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        const diffMs = todayObj.getTime() - startObj.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+        return diffDays >= 1 ? diffDays : 1;
+    }
+
+    function updateSafetyCounterDisplay() {
+        const days = calculateSafetyDays();
+        const daysEl = document.getElementById('safety-days-count');
+        if (daysEl) {
+            daysEl.innerText = `${days}일`;
+        }
+    }
+
+    function openSafetyDateModal() {
+        const curStart = getSafetyStartDateStr();
+        const curDays = calculateSafetyDays(curStart);
+        const inputEl = document.getElementById('safety-start-date-input');
+        const previewEl = document.getElementById('safety-modal-preview');
+        const curLabelEl = document.getElementById('safety-current-start-label');
+        const todayLabelEl = document.getElementById('safety-today-label');
+        
+        if (inputEl) inputEl.value = curStart;
+        if (previewEl) previewEl.innerText = `무사고 ${curDays}일차`;
+        if (curLabelEl) curLabelEl.innerText = `${curStart} (${curDays}일차)`;
+        
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (todayLabelEl) todayLabelEl.innerText = todayStr;
+        
+        const modal = document.getElementById('safety-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeSafetyDateModal() {
+        const modal = document.getElementById('safety-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function previewSafetyDays() {
+        const inputEl = document.getElementById('safety-start-date-input');
+        if (!inputEl || !inputEl.value) return;
+        const previewDays = calculateSafetyDays(inputEl.value);
+        const previewEl = document.getElementById('safety-modal-preview');
+        if (previewEl) previewEl.innerText = `무사고 ${previewDays}일차`;
+    }
+
+    function saveSafetyStartDate() {
+        const inputEl = document.getElementById('safety-start-date-input');
+        if (!inputEl || !inputEl.value) return;
+        localStorage.setItem('safety_start_date', inputEl.value);
+        updateSafetyCounterDisplay();
+        closeSafetyDateModal();
+        if (typeof showToast === 'function') {
+            showToast(`무사고 기준일이 ${inputEl.value}로 설정되었습니다.`, 'success');
+        }
+    }
+
+    function resetSafetyStartDate() {
+        localStorage.removeItem('safety_start_date');
+        const inputEl = document.getElementById('safety-start-date-input');
+        if (inputEl) inputEl.value = DEFAULT_SAFETY_START_DATE;
+        previewSafetyDays();
+        saveSafetyStartDate();
+    }
+
+    // 창 포커스 또는 가시성 변경 시 무사고 일수 자동 갱신
+    window.addEventListener('focus', updateSafetyCounterDisplay);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) updateSafetyCounterDisplay();
+    });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateSafetyCounterDisplay);
+    } else {
+        updateSafetyCounterDisplay();
+    }
+
+// [Module: action_drawer.js]
+// ===== ✅ Action Required List =====
     // 업무 지시 누락 방지용 부가 기능. 로그인 이름(hitachi_username)으로 본인을 식별하고
     // 담당자 목록은 [팀원관리]에 등록된 팀원을 그대로 사용한다.
     let actionItems = [];
@@ -2171,7 +2403,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     }
     // ===========================
 
-    // ===== 📊 대시보드 =====
+// [Module: dashboard.js]
+// ===== 📊 대시보드 =====
     // ScheduleDB(cachedEvents) · ActionDB(actionItems) · EquipmentDB(cachedEquipments)를
     // 그대로 재사용해 클라이언트에서 통계를 계산한다. (서버/시트 추가 변경 없음)
     let dashPeriod = 'month';   // month | 3m | all
@@ -2586,7 +2819,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     }
     // ===========================
 
-    // ===== 🧭 사이드바 =====
+// [Module: sidebar_notify.js]
+// ===== 🧭 사이드바 =====
     function toggleSidebar(show) {
         const sb = document.getElementById('sidebar');
         const bd = document.getElementById('sidebar-backdrop');
@@ -2822,7 +3056,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     function closeAlarmModal() { document.getElementById('alarm-modal').classList.add('hidden'); }
     // ===========================
 
-    // ===== 🔧 셋업 관리 (설비 현황판, 일정과 무관한 별개 기능) =====
+// [Module: setup_manager.js]
+// ===== 🔧 셋업 관리 (설비 현황판, 일정과 무관한 별개 기능) =====
     let cachedEquipments = []; // [{ id, lineName, ipuBracket, dvr, chemFilter }]
     const EQUIP_NONE = 'X'; // 미적용 표시값
 
@@ -2977,7 +3212,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
     setInterval(loadEventsFromSheet, 60000);
 
     // ==========================================
-    // 🔍 통합 일정 및 작업 이력 검색 엔진
+
+// [Module: search_modal.js]
+// 🔍 통합 일정 및 작업 이력 검색 엔진
     // ==========================================
     let searchFilterType = 'all';
     let currentSearchResults = [];
@@ -3296,9 +3533,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxxZFPJMhPFtBlWOzubV
         link.click();
         document.body.removeChild(link);
     }
-
 </script>
-
 <!-- 🔍 통합 일정/작업 이력 검색 모달 -->
 <div id="search-modal" class="fixed inset-0 bg-black/60 hidden z-[95] flex items-start md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
     <div class="bg-surface w-full h-full md:h-[88vh] md:max-w-4xl md:rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
