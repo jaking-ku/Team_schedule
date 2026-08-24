@@ -2467,42 +2467,30 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         }).join('') + (sorted.length > 5 ? `<span class="text-[11px] font-bold text-text-muted px-1">+${sorted.length - 5}건 더보기</span>` : '');
     }
 
-    // 🌟 2번 기능: 새 업무 도착 및 긴급 업무 팝업 모달
-    const SEEN_ACTIONS_KEY = 'hitachi_seen_action_ids_v1';
+    // 🌟 2번 기능: 새 업무 도착 및 긴급 업무 팝업 모달 (오늘 하루 보지 않기 지원)
+    const POPUP_HIDE_DATE_KEY = 'hitachi_action_popup_hide_date';
 
-    function getSeenActionIds() {
+    function isPopupHiddenForToday() {
         try {
-            return JSON.parse(localStorage.getItem(SEEN_ACTIONS_KEY) || '[]');
+            return localStorage.getItem(POPUP_HIDE_DATE_KEY) === todayStrLocal();
         } catch (e) {
-            return [];
+            return false;
         }
-    }
-
-    function saveSeenActionIds(ids) {
-        try {
-            localStorage.setItem(SEEN_ACTIONS_KEY, JSON.stringify(ids));
-        } catch (e) {}
     }
 
     function checkNewActionAlerts() {
         if (actionAlertCheckedThisSession) return;
+        if (isPopupHiddenForToday()) return; // 🌟 오늘 하루 보지 않기가 활성화되어 있으면 팝업 차단
+
         const me = getCurrentUsername();
         if (!me) return;
 
         const mine = myOpenActions();
         if (mine.length === 0) return;
 
-        const seenIds = new Set(getSeenActionIds());
-        const newItems = mine.filter(a => !seenIds.has(a.id));
-        const urgentItems = mine.filter(a => isOverdue(a) || a.dueDate === todayStrLocal());
-
-        // 새 항목이 있거나 오늘 마감/기한초과 항목이 있으면 팝업
-        const alertItems = newItems.length > 0 ? newItems : (urgentItems.length > 0 && !seenIds.has('URGENT_TODAY_' + todayStrLocal()) ? urgentItems : []);
-
-        if (alertItems.length > 0) {
-            actionAlertCheckedThisSession = true;
-            showNewActionModal(alertItems, me);
-        }
+        // 본인에게 배정된 미완료 업무가 있으면 팝업 노출
+        actionAlertCheckedThisSession = true;
+        showNewActionModal(mine, me);
     }
 
     function showNewActionModal(items, username) {
@@ -2541,7 +2529,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         }, 10);
     }
 
-    function closeNewActionModal(markRead = true) {
+    function closeNewActionModal(hideForToday = false) {
         const modal = document.getElementById('new-action-modal');
         const card = document.getElementById('new-action-modal-card');
         if (!modal) return;
@@ -2555,16 +2543,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             modal.classList.add('hidden');
         }, 200);
 
-        if (markRead) {
-            // 현재 내 액션 아이템들의 ID를 모두 읽음 처리
-            const currentIds = actionItems.map(a => a.id);
-            currentIds.push('URGENT_TODAY_' + todayStrLocal());
-            saveSeenActionIds(currentIds);
+        if (hideForToday) {
+            // 오늘 하루 동안 다시 띄우지 않도록 날짜 기록
+            try {
+                localStorage.setItem(POPUP_HIDE_DATE_KEY, todayStrLocal());
+            } catch (e) {}
         }
     }
 
     function openActionDrawerFromModal() {
-        closeNewActionModal(true);
+        closeNewActionModal(false);
         openActionDrawer();
         switchActionTab('mine');
     }
@@ -4164,12 +4152,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             <button onclick="closeNewActionModal(true)" class="text-text-muted hover:text-text-main p-1.5"><span class="material-symbols-outlined text-[20px]">close</span></button>
         </div>
         <div id="new-action-modal-list" class="p-5 max-h-[50vh] overflow-y-auto space-y-2.5 bg-background/50"></div>
-        <div class="p-4 bg-surface border-t border-border flex items-center justify-between gap-3">
-            <button onclick="closeNewActionModal(true)" class="text-xs font-bold text-text-muted hover:text-text-main px-3 py-2 rounded-xl transition-colors">
-                확인 완료 (닫기)
-            </button>
-            <button onclick="openActionDrawerFromModal()" class="text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl shadow-lg shadow-purple-600/25 flex items-center gap-1.5 transition-all">
-                <span>Action List에서 지금 확인하기</span>
+        <div class="p-4 bg-surface border-t border-border flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2">
+                <button onclick="closeNewActionModal(true)" class="text-[11.5px] font-bold text-text-muted hover:text-purple-600 bg-background border border-border px-3 py-2 rounded-xl transition-colors flex items-center gap-1" title="오늘 하루 동안 이 팝업을 다시 띄우지 않습니다">
+                    <span class="material-symbols-outlined text-[15px]">event_busy</span>
+                    <span>오늘 하루 보지 않기</span>
+                </button>
+                <button onclick="closeNewActionModal(false)" class="text-[11.5px] font-bold text-text-muted hover:text-text-main px-2.5 py-2 rounded-xl transition-colors">
+                    닫기
+                </button>
+            </div>
+            <button onclick="openActionDrawerFromModal()" class="text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl shadow-lg shadow-purple-600/25 flex items-center gap-1.5 transition-all ml-auto">
+                <span>Action List 열기</span>
                 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
             </button>
         </div>
