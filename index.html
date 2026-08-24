@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-    
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -22,227 +21,226 @@
     </script>
     <style>
 :root { --bg-surface: #ffffff; --bg-body: #f8f9fa; --border-color: #e5e7eb; --text-main: #1b1c1c; --text-muted: #6b7280; --calendar-zoom: 1; }
-        html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
-        body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
-        
-        .grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; zoom: var(--calendar-zoom); }
-        .grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
-        .grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
-        
-        .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
-        html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
-        .is-note { background-color: rgba(0,0,0,0.02); }
+html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
+body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
 
-        /* 🎌 연휴(공휴일) 표시 - 반투명 주황색 (일정 추가/드래그는 그대로 가능) */
-        .is-holiday { background-color: rgba(249, 115, 22, 0.14); }
-        html.dark .is-holiday { background-color: rgba(249, 115, 22, 0.18); }
-        .is-holiday-header { background-color: rgba(249, 115, 22, 0.25) !important; color: #c2410c !important; cursor: pointer; }
-        html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !important; color: #fdba74 !important; }
-        .date-header-clickable { cursor: pointer; transition: background-color 0.15s; }
-        .date-header-clickable:hover { background-color: rgba(249, 115, 22, 0.12); }
-        
-        .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
-        .cat-normal { border-left-color: #b7000c; } 
-        .cat-pm { border-left-color: #10b981; color: #059669; }     
-        .cat-urgent { border-left-color: #f59e0b; color: #d97706; } 
-        .cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
-        .vacation { border-left-color: #3b82f6; color: #2563eb; }   
-        
-        .delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
-        .event-card:hover .delete-btn { opacity: 1; }
+.grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; zoom: var(--calendar-zoom); }
+.grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
 
-        /* ➡️ 연속 일정(시작일~마감일이 2일 이상)을 하나의 긴 막대로 표시 */
+.is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
+html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
+.is-note { background-color: rgba(0,0,0,0.02); }
 
-        /* ===== ✅ Action Required List ===== */
-        #action-drawer { transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
-        .act-badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
-            border-radius: 9px; font-size: 10px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center; line-height: 1; }
-        .act-tab { flex: 1; padding: 9px 4px; font-size: 11px; font-weight: 800; color: var(--text-muted);
-            border-bottom: 2px solid transparent; white-space: nowrap; transition: color .15s, border-color .15s; }
-        .act-tab.active { color: #b7000c; border-bottom-color: #b7000c; }
-        html.dark .act-tab.active { color: #f87171; border-bottom-color: #f87171; }
+/* 🎌 연휴(공휴일) 표시 - 반투명 주황색 */
+.is-holiday { background-color: rgba(249, 115, 22, 0.14); }
+html.dark .is-holiday { background-color: rgba(249, 115, 22, 0.18); }
+.is-holiday-header { background-color: rgba(249, 115, 22, 0.25) !important; color: #c2410c !important; cursor: pointer; }
+html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !important; color: #fdba74 !important; }
+.date-header-clickable { cursor: pointer; transition: background-color 0.15s; }
+.date-header-clickable:hover { background-color: rgba(249, 115, 22, 0.12); }
 
-        .act-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px;
-            border-radius: 8px; padding: 10px 12px; transition: box-shadow .15s, opacity .15s; }
-        .act-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .act-p-high   { border-left-color: #dc2626; }
-        .act-p-normal { border-left-color: #94a3b8; }
-        .act-p-low    { border-left-color: #3b82f6; }
-        .act-overdue  { background: rgba(220, 38, 38, 0.055); }
-        .act-done { opacity: 0.55; }
-        .act-done .act-title { text-decoration: line-through; }
-        .act-title { font-size: 13px; font-weight: 700; line-height: 1.35; color: var(--text-main); word-break: break-word; }
-        .act-detail { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
-        .act-progress { border-top: 1px dashed var(--border-color); padding-top: 5px; margin-top: 6px; }
-        .act-progress-line { font-size: 10.5px; font-weight: 600; color: var(--text-muted); line-height: 1.5; word-break: break-word; }
-        .act-progress-line::before { content: "▸ "; color: #16a34a; font-weight: 800; }
-        .act-progress-form input { min-width: 0; }
-        .act-meta { font-size: 10.5px; font-weight: 700; color: var(--text-muted); }
-        .act-chip { font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
-        .act-check { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; cursor: pointer; accent-color: #16a34a; }
-        /* 담당자 선택 칩 */
-        .act-pick { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color);
-            background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
-        .act-pick.on { background: #b7000c; border-color: #b7000c; color: #fff; }
+.event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
+.cat-normal { border-left-color: #b7000c; } 
+.cat-pm { border-left-color: #10b981; color: #059669; }     
+.cat-urgent { border-left-color: #f59e0b; color: #d97706; } 
+.cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
+.vacation { border-left-color: #3b82f6; color: #2563eb; }   
 
-        .span-area { flex-shrink: 0; pointer-events: none; }
-        .grid-cell.has-span { position: relative; z-index: 5; }
-        .event-card.span-card {
-            position: absolute; padding: 4px 8px; overflow: hidden; z-index: 6;
-            display: flex; flex-direction: column; justify-content: center;
-            cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-        }
-        .span-card .span-title { font-size: 12px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 14px; }
-        .span-card .span-sub { font-size: 9px; font-weight: 600; opacity: 0.65; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-        /* 주(week)를 넘어가는 경우 잘린 쪽 모서리를 각지게 처리 */
-        .span-cont-left { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0 !important; }
-        .span-cont-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+.delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
+.event-card:hover .delete-btn { opacity: 1; }
 
-        /* ===== 🧭 사이드바 레이아웃 ===== */
-        #sidebar { transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
-        .nav-item {
-            width: 100%; display: flex; align-items: center; gap: 10px;
-            padding: 9px 16px; font-size: 11.5px; font-weight: 700; letter-spacing: -0.1px;
-            color: var(--text-muted); background: transparent; text-align: left;
-            border-left: 3px solid transparent; cursor: pointer; position: relative;
-            transition: background-color .13s, color .13s, border-color .13s;
-        }
-        .nav-item:hover { background: var(--bg-body); color: var(--text-main); }
-        .nav-item .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
-        .nav-item.is-primary { color: #b7000c; }
-        html.dark .nav-item.is-primary { color: #f87171; }
-        .nav-item.is-primary:hover { background: rgba(183, 0, 12, 0.07); border-left-color: #b7000c; }
-        /* 사이드바 뱃지 (숫자 알림) */
-        .nav-count {
-            margin-left: auto; min-width: 18px; height: 16px; padding: 0 4px; border-radius: 4px;
-            font-size: 9.5px; font-weight: 800; color: #fff; background: #b7000c;
-            display: flex; align-items: center; justify-content: center; line-height: 1;
-        }
-        .nav-section {
-            padding: 11px 16px 4px; font-size: 9px; font-weight: 800; letter-spacing: 0.7px;
-            color: var(--text-muted); opacity: 0.55; text-transform: uppercase;
-        }
-        .nav-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
-        .search-shortcut { font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-muted); }
+/* ===== ✅ Action Required List ===== */
+#action-drawer { transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+.act-badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
+    border-radius: 9px; font-size: 10px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.act-tab { flex: 1; padding: 9px 4px; font-size: 11px; font-weight: 800; color: var(--text-muted);
+    border-bottom: 2px solid transparent; white-space: nowrap; transition: color .15s, border-color .15s; }
+.act-tab.active { color: #b7000c; border-bottom-color: #b7000c; }
+html.dark .act-tab.active { color: #f87171; border-bottom-color: #f87171; }
 
-        /* ===== 📊 대시보드 ===== */
-        #dashboard-modal { z-index: 90; }
-        .dash-kpi { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
-        .dash-kpi-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
-        .dash-kpi-value { font-size: 24px; font-weight: 900; color: var(--text-main); line-height: 1.2; margin-top: 2px; }
-        .dash-kpi-sub { font-size: 10.5px; font-weight: 700; margin-top: 3px; }
-        .dash-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; }
-        .dash-card-title { font-size: 12.5px; font-weight: 800; color: var(--text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
-        .dash-tab { padding: 8px 14px; font-size: 12px; font-weight: 800; color: var(--text-muted); border-radius: 8px; cursor: pointer; white-space: nowrap; }
-        .dash-tab.active { background: #b7000c; color: #fff; }
-        .dash-period { padding: 5px 12px; font-size: 11px; font-weight: 700; border-radius: 999px; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; background: var(--bg-surface); }
-        .dash-period.active { background: #b7000c; border-color: #b7000c; color: #fff; }
-        .dash-rank-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 0; }
-        .dash-rank-bar-wrap { flex: 1; height: 8px; background: var(--bg-body); border-radius: 4px; overflow: hidden; }
-        .dash-rank-bar { height: 100%; border-radius: 4px; background: #b7000c; }
+.act-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px;
+    border-radius: 8px; padding: 10px 12px; transition: box-shadow .15s, opacity .15s; }
+.act-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.act-p-high   { border-left-color: #dc2626; }
+.act-p-normal { border-left-color: #94a3b8; }
+.act-p-low    { border-left-color: #3b82f6; }
+.act-overdue  { background: rgba(220, 38, 38, 0.055); }
+.act-done { opacity: 0.55; }
+.act-done .act-title { text-decoration: line-through; }
+.act-title { font-size: 13px; font-weight: 700; line-height: 1.35; color: var(--text-main); word-break: break-word; }
+.act-detail { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+.act-meta { font-size: 10.5px; font-weight: 700; color: var(--text-muted); }
+.act-chip { font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.act-check { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; cursor: pointer; accent-color: #16a34a; }
 
-        /* 🏷️ 작업유형 태그 칩 */
-        .tag-pick { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border-color);
-            background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
-        .tag-pick.on { color: #fff; border-color: transparent; }
-        .tag-pick.bm-pick.on { background: #dc2626; }
-    
-        /* 🔍 검색 모달 필터 칩 스타일 */
-        .search-filter-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
-        .search-filter-chip:hover { color: var(--text-main); border-color: var(--text-muted); }
-        .search-filter-chip.active { background: #b7000c; border-color: #b7000c; color: #fff; }
-        .search-item-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 10px; padding: 12px 14px; transition: all .15s; }
-        .search-item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: var(--border-color); transform: translateY(-1px); }
+/* 📝 업무 진행상황 스타일 */
+.act-progress { border-top: 1px dashed var(--border-color); padding-top: 6px; margin-top: 6px; }
+.act-progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+.act-progress-label { font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: -0.2px; }
+.act-progress-line { font-size: 11px; font-weight: 600; color: var(--text-muted); line-height: 1.5; word-break: break-word; }
+.act-progress-line::before { content: "▸ "; color: #16a34a; font-weight: 800; }
+.act-progress-form input { min-width: 0; }
+.act-progress-edit-form textarea { min-width: 0; font-family: inherit; }
 
-        /* ===== 🛡️ 무사고 카운터 배지 스타일 ===== */
-        .safety-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            padding: 5px 12px;
-            border-radius: 9999px;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.14) 100%);
-            border: 1.5px solid rgba(16, 185, 129, 0.35);
-            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            user-select: none;
-        }
-        html.dark .safety-badge {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.35) 100%);
-            border-color: rgba(16, 185, 129, 0.4);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-        .safety-badge:hover {
-            transform: translateY(-1px);
-            border-color: rgba(16, 185, 129, 0.65);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-        }
-        .safety-pulse-wrapper {
-            position: relative;
-            display: flex;
-            height: 8px;
-            width: 8px;
-            align-items: center;
-            justify-content: center;
-        }
-        .safety-pulse-ping {
-            position: absolute;
-            display: inline-flex;
-            height: 100%;
-            width: 100%;
-            border-radius: 9999px;
-            background-color: #10b981;
-            opacity: 0.75;
-            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-        }
-        .safety-pulse-dot {
-            position: relative;
-            display: inline-flex;
-            border-radius: 9999px;
-            height: 7px;
-            width: 7px;
-            background-color: #059669;
-        }
-        html.dark .safety-pulse-dot {
-            background-color: #34d399;
-        }
-        .safety-icon {
-            font-size: 18px !important;
-            color: #059669;
-        }
-        html.dark .safety-icon {
-            color: #34d399;
-        }
-        .safety-label {
-            font-size: 11.5px;
-            font-weight: 800;
-            color: #065f46;
-            letter-spacing: -0.2px;
-        }
-        html.dark .safety-label {
-            color: #a7f3d0;
-        }
-        .safety-days {
-            font-size: 14px;
-            font-weight: 900;
-            color: #047857;
-            font-variant-numeric: tabular-nums;
-            letter-spacing: -0.3px;
-        }
-        html.dark .safety-days {
-            color: #6ee7b7;
-        }
+/* 담당자 선택 칩 */
+.act-pick { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color);
+    background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
+.act-pick.on { background: #b7000c; border-color: #b7000c; color: #fff; }
+
+.span-area { flex-shrink: 0; pointer-events: none; }
+.grid-cell.has-span { position: relative; z-index: 5; }
+.event-card.span-card {
+    position: absolute; padding: 4px 8px; overflow: hidden; z-index: 6;
+    display: flex; flex-direction: column; justify-content: center;
+    cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.span-card .span-title { font-size: 12px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 14px; }
+.span-card .span-sub { font-size: 9px; font-weight: 600; opacity: 0.65; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.span-cont-left { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0 !important; }
+.span-cont-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ===== 🧭 사이드바 레이아웃 ===== */
+#sidebar { transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
+.nav-item {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; font-size: 11.5px; font-weight: 700; letter-spacing: -0.1px;
+    color: var(--text-muted); background: transparent; text-align: left;
+    border-left: 3px solid transparent; cursor: pointer; position: relative;
+    transition: background-color .13s, color .13s, border-color .13s;
+}
+.nav-item:hover { background: var(--bg-body); color: var(--text-main); }
+.nav-item .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
+.nav-item.is-primary { color: #b7000c; }
+html.dark .nav-item.is-primary { color: #f87171; }
+.nav-item.is-primary:hover { background: rgba(183, 0, 12, 0.07); border-left-color: #b7000c; }
+.nav-count {
+    margin-left: auto; min-width: 18px; height: 16px; padding: 0 4px; border-radius: 4px;
+    font-size: 9.5px; font-weight: 800; color: #fff; background: #b7000c;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.nav-section {
+    padding: 11px 16px 4px; font-size: 9px; font-weight: 800; letter-spacing: 0.7px;
+    color: var(--text-muted); opacity: 0.55; text-transform: uppercase;
+}
+.nav-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+.search-shortcut { font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-muted); }
+
+/* ===== 📊 대시보드 ===== */
+#dashboard-modal { z-index: 90; }
+.dash-kpi { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
+.dash-kpi-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.dash-kpi-value { font-size: 24px; font-weight: 900; color: var(--text-main); line-height: 1.2; margin-top: 2px; }
+.dash-kpi-sub { font-size: 10.5px; font-weight: 700; margin-top: 3px; }
+.dash-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; }
+.dash-card-title { font-size: 12.5px; font-weight: 800; color: var(--text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+.dash-tab { padding: 8px 14px; font-size: 12px; font-weight: 800; color: var(--text-muted); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.dash-tab.active { background: #b7000c; color: #fff; }
+.dash-period { padding: 5px 12px; font-size: 11px; font-weight: 700; border-radius: 999px; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; background: var(--bg-surface); }
+.dash-period.active { background: #b7000c; border-color: #b7000c; color: #fff; }
+.dash-rank-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 0; }
+.dash-rank-bar-wrap { flex: 1; height: 8px; background: var(--bg-body); border-radius: 4px; overflow: hidden; }
+.dash-rank-bar { height: 100%; border-radius: 4px; background: #b7000c; }
+
+/* 🏷️ 작업유형 태그 칩 */
+.tag-pick { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border-color);
+    background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
+.tag-pick.on { color: #fff; border-color: transparent; }
+.tag-pick.bm-pick.on { background: #dc2626; }
+
+/* 🔍 검색 모달 필터 칩 스타일 */
+.search-filter-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
+.search-filter-chip:hover { color: var(--text-main); border-color: var(--text-muted); }
+.search-filter-chip.active { background: #b7000c; border-color: #b7000c; color: #fff; }
+.search-item-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 10px; padding: 12px 14px; transition: all .15s; }
+.search-item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: var(--border-color); transform: translateY(-1px); }
+
+/* ===== 🛡️ 무사고 카운터 배지 스타일 ===== */
+.safety-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.14) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.35);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+html.dark .safety-badge {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.35) 100%);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.safety-badge:hover {
+    transform: translateY(-1px);
+    border-color: rgba(16, 185, 129, 0.65);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+.safety-pulse-wrapper {
+    position: relative;
+    display: flex;
+    height: 8px;
+    width: 8px;
+    align-items: center;
+    justify-content: center;
+}
+.safety-pulse-ping {
+    position: absolute;
+    display: inline-flex;
+    height: 100%;
+    width: 100%;
+    border-radius: 9999px;
+    background-color: #10b981;
+    opacity: 0.75;
+    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.safety-pulse-dot {
+    position: relative;
+    display: inline-flex;
+    border-radius: 9999px;
+    height: 7px;
+    width: 7px;
+    background-color: #059669;
+}
+html.dark .safety-pulse-dot {
+    background-color: #34d399;
+}
+.safety-icon {
+    font-size: 18px !important;
+    color: #059669;
+}
+html.dark .safety-icon {
+    color: #34d399;
+}
+.safety-label {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #065f46;
+    letter-spacing: -0.2px;
+}
+html.dark .safety-label {
+    color: #a7f3d0;
+}
+.safety-days {
+    font-size: 14px;
+    font-weight: 900;
+    color: #047857;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px;
+}
+html.dark .safety-days {
+    color: #6ee7b7;
+}
     </style>
 </head>
 <body class="flex min-h-screen">
-
 <!-- 🧭 모바일 백드롭 -->
 <div id="sidebar-backdrop" class="fixed inset-0 bg-black/45 hidden z-[60] md:hidden backdrop-blur-[2px]" onclick="toggleSidebar(false)"></div>
-
 <!-- 🧭 좌측 사이드바 -->
 <aside id="sidebar" class="fixed md:sticky top-0 left-0 h-screen w-[232px] flex-shrink-0 bg-surface border-r border-border z-[65] flex flex-col -translate-x-full md:translate-x-0">
-
     <!-- 로고 -->
     <div class="px-[18px] py-4 border-b border-border flex-shrink-0">
         <div class="flex items-center justify-between">
@@ -253,7 +251,6 @@
         </div>
         <p class="text-[9.5px] font-bold text-text-muted tracking-[0.5px] mt-1.5">평가4부 TEAM SCHEDULE</p>
     </div>
-
     <!-- 메뉴 -->
     <nav class="flex-1 overflow-y-auto py-2 no-scrollbar">
         <div class="px-3 py-1.5">
@@ -265,7 +262,6 @@
                 <span class="search-shortcut hidden md:inline">Ctrl+K</span>
             </button>
         </div>
-
         <div class="nav-section">일정</div>
         <button class="nav-item is-primary" onclick="navAction('openModal')">
             <span class="material-symbols-outlined">add_circle</span> 일정 추가
@@ -276,13 +272,11 @@
         <button class="nav-item" onclick="navAction('downloadCSV')">
             <span class="material-symbols-outlined">download</span> 데이터 다운로드
         </button>
-
         <div class="nav-divider"></div>
         <div class="nav-section">분석</div>
         <button class="nav-item" onclick="navAction('openDashboard')">
             <span class="material-symbols-outlined">monitoring</span> 대시보드
         </button>
-
         <div class="nav-divider"></div>
         <div class="nav-section">업무</div>
         <button class="nav-item" onclick="navAction('openActionDrawer')">
@@ -293,7 +287,6 @@
             <span class="material-symbols-outlined">notifications</span> SETUP 알림
             <span id="nav-alarm-count" class="nav-count hidden" style="background:#f59e0b">0</span>
         </button>
-
         <div class="nav-divider"></div>
         <div class="nav-section">관리</div>
         <button class="nav-item" onclick="navAction('openEquipModal')">
@@ -303,7 +296,6 @@
             <span class="material-symbols-outlined">groups</span> 팀원 관리
         </button>
     </nav>
-
     <!-- 하단 고정 영역 -->
     <div class="border-t border-border py-2 flex-shrink-0">
         <button class="nav-item" onclick="toggleDarkMode()">
@@ -323,10 +315,8 @@
         </div>
     </div>
 </aside>
-
 <!-- 본문 래퍼 -->
 <div class="flex-1 flex flex-col min-w-0">
-
 <!-- 📱 모바일 상단바 -->
 <header class="md:hidden sticky top-0 z-40 bg-surface border-b border-border h-14 px-2 flex items-center justify-between flex-shrink-0">
     <button onclick="toggleSidebar(true)" class="p-2 text-text-main">
@@ -346,7 +336,6 @@
         </button>
     </div>
 </header>
-
 <main class="flex-1 p-3 md:p-7 flex flex-col w-full min-w-0">
     <div id="calendar-topbar" class="sticky top-14 md:top-0 z-30 -mx-3 md:-mx-7 px-3 md:px-7 py-3 bg-background flex flex-col md:flex-row items-center justify-between gap-4 border-b border-border md:border-b-0">
         <div class="flex items-center justify-between w-full md:w-auto gap-3 md:gap-5 flex-wrap">
@@ -376,17 +365,13 @@
             </div>
         </div>
     </div>
-
     <div id="calendar-pc-container" class="hidden md:block space-y-12 overflow-x-auto mt-4 md:mt-8"></div>
-
     <div id="calendar-mobile-container" class="block md:hidden mt-4"></div>
 </main>
 </div>
-
 <!-- 📊 대시보드 모달 -->
 <div id="dashboard-modal" class="fixed inset-0 bg-black/50 hidden z-[90] flex items-start md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
     <div class="bg-background w-full h-full md:h-[90vh] md:max-w-6xl md:rounded-xl shadow-2xl border border-border flex flex-col overflow-hidden">
-
         <!-- 헤더 -->
         <div class="px-4 md:px-6 py-3.5 border-b border-border bg-surface flex justify-between items-center flex-shrink-0">
             <h3 class="text-base md:text-lg font-black flex items-center gap-2 text-text-main">
@@ -399,7 +384,6 @@
         </div>
         <!-- 모바일 기간 선택 -->
         <div id="dash-period-picks-m" class="md:hidden flex items-center gap-1.5 px-4 py-2.5 border-b border-border bg-surface overflow-x-auto no-scrollbar flex-shrink-0"></div>
-
         <!-- 탭 -->
         <div class="flex items-center gap-1 px-4 md:px-6 py-2 border-b border-border bg-surface overflow-x-auto no-scrollbar flex-shrink-0">
             <div class="dash-tab active" data-dtab="overview" onclick="switchDashTab('overview')">📈 개요</div>
@@ -408,7 +392,6 @@
             <div class="dash-tab" data-dtab="tags" onclick="switchDashTab('tags')">🏷️ 작업유형</div>
             <div class="dash-tab" data-dtab="action" onclick="switchDashTab('action')">✅ Action</div>
         </div>
-
         <!-- 본문 -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6" id="dashboard-body">
             <div id="dtab-overview" class="dash-pane space-y-4"></div>
@@ -419,11 +402,9 @@
         </div>
     </div>
 </div>
-
 <!-- ✅ Action Required List 드로어 -->
 <div id="action-backdrop" class="fixed inset-0 bg-black/40 hidden z-[85] backdrop-blur-[2px]" onclick="closeActionDrawer()"></div>
 <aside id="action-drawer" class="fixed top-0 right-0 h-full w-full md:w-[460px] bg-background border-l border-border z-[86] flex flex-col translate-x-full shadow-2xl">
-
     <!-- 헤더 -->
     <div class="px-4 py-3.5 border-b border-border bg-surface flex justify-between items-center flex-shrink-0">
         <div>
@@ -439,14 +420,12 @@
             <button onclick="closeActionDrawer()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
         </div>
     </div>
-
     <!-- 알림 권한 안내 -->
     <div id="notify-banner" class="hidden px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2 flex-shrink-0">
         <span class="material-symbols-outlined text-[18px] text-amber-600 dark:text-amber-400">notifications_active</span>
         <span class="text-[11px] font-bold text-amber-800 dark:text-amber-200 flex-1 leading-snug">알림을 켜면 나에게 지시된 업무와 마감 임박 건을 바로 알려드립니다.</span>
         <button onclick="toggleBrowserNotify()" class="text-[11px] font-black text-amber-900 dark:text-amber-100 bg-amber-200 dark:bg-amber-800 px-2.5 py-1 rounded whitespace-nowrap">켜기</button>
     </div>
-
     <!-- 탭 -->
     <div class="flex border-b border-border bg-surface flex-shrink-0">
         <button class="act-tab active" data-tab="mine" onclick="switchActionTab('mine')">📥 내 할 일</button>
@@ -454,14 +433,12 @@
         <button class="act-tab" data-tab="all" onclick="switchActionTab('all')">👥 전체</button>
         <button class="act-tab" data-tab="done" onclick="switchActionTab('done')">✅ 완료</button>
     </div>
-
     <!-- 새 업무 추가 -->
     <div class="px-4 pt-3 flex-shrink-0">
         <button id="action-open-form-btn" onclick="toggleActionForm(true)" class="w-full py-2.5 text-xs font-bold bg-primary text-white rounded-lg flex items-center justify-center gap-1.5 hover:opacity-90">
             <span class="material-symbols-outlined text-[18px]">add_task</span> 업무 지시 / 할 일 추가
         </button>
     </div>
-
     <!-- 입력 폼 (접이식) -->
     <div id="action-form" class="hidden px-4 pt-3 flex-shrink-0">
         <div class="bg-surface border border-border rounded-xl p-3.5 space-y-3">
@@ -470,19 +447,16 @@
                 <button onclick="toggleActionForm(false)" class="text-text-muted hover:text-red-500"><span class="material-symbols-outlined text-[18px]">close</span></button>
             </div>
             <input type="hidden" id="action-edit-id">
-
             <div>
                 <label class="block text-[11px] font-bold text-text-muted mb-1">업무 내용 <span class="text-primary">*</span></label>
                 <input type="text" id="action-input-title" placeholder="예: P1F 챔버 부품 발주 확인"
                     class="w-full bg-background border border-border text-text-main text-sm rounded-lg px-3 py-2.5 outline-none focus:border-primary">
             </div>
-
             <div>
                 <label class="block text-[11px] font-bold text-text-muted mb-1">담당자 <span class="text-primary">*</span> <span id="action-assignee-hint" class="font-normal opacity-70"></span></label>
                 <div id="action-assignee-picks" class="flex flex-wrap gap-1.5"></div>
                 <p id="action-assignee-note" class="text-[10px] text-text-muted mt-1.5 leading-relaxed"></p>
             </div>
-
             <div class="grid grid-cols-2 gap-2">
                 <div>
                     <label class="block text-[11px] font-bold text-text-muted mb-1">마감 기한</label>
@@ -497,23 +471,19 @@
                     </select>
                 </div>
             </div>
-
             <div>
                 <label class="block text-[11px] font-bold text-text-muted mb-1">상세 메모 <span class="font-normal opacity-70">(선택)</span></label>
                 <textarea id="action-input-detail" rows="2" placeholder="배경, 참고사항 등"
                     class="w-full bg-background border border-border text-text-main text-xs rounded-lg px-3 py-2 outline-none focus:border-primary resize-none"></textarea>
             </div>
-
             <button onclick="saveActionItem()" class="w-full py-2.5 text-xs font-bold bg-primary text-white rounded-lg hover:opacity-90 flex items-center justify-center gap-1.5">
                 <span class="material-symbols-outlined text-[18px]">check</span> <span id="action-save-label">등록</span>
             </button>
         </div>
     </div>
-
     <!-- 목록 -->
     <div id="action-list" class="flex-1 overflow-y-auto px-4 py-3 space-y-2"></div>
 </aside>
-
 <!-- 최초 방문 이름 입력 팝업 -->
 <div id="username-modal" class="fixed inset-0 bg-black/70 hidden z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-border">
@@ -534,7 +504,6 @@
         </div>
     </div>
 </div>
-
 <div id="event-modal" class="fixed inset-0 bg-black/60 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-border">
         <div class="px-6 py-4 border-b border-border flex justify-between items-center">
@@ -613,7 +582,6 @@
         </div>
     </div>
 </div>
-
 <div id="mobile-day-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-end md:items-center justify-center backdrop-blur-sm">
     <div class="bg-surface w-full md:max-w-md rounded-t-2xl md:rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
         <div class="px-5 py-4 border-b border-border flex justify-between items-center bg-background/50">
@@ -631,7 +599,6 @@
         </div>
     </div>
 </div>
-
 <div id="alarm-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh]">
         <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-background/50">
@@ -643,7 +610,6 @@
         <div id="alarm-list" class="p-4 overflow-y-auto space-y-2 flex-1 min-h-[150px]"></div>
     </div>
 </div>
-
 <!-- 셋업 관리 모달 -->
 <div id="equip-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
@@ -675,7 +641,6 @@
         </div>
     </div>
 </div>
-
 <!-- 🧑‍🤝‍🧑 팀원 관리 모달 -->
 <div id="team-modal" class="fixed inset-0 bg-black/60 hidden z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
@@ -702,7 +667,6 @@
         </div>
     </div>
 </div>
-
 <!-- 🎌 연휴(공휴일) 설정 모달 -->
 <div id="holiday-modal" class="fixed inset-0 bg-black/60 hidden z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-border">
@@ -722,7 +686,6 @@
         </div>
     </div>
 </div>
-
 <!-- HTK 회사 캘린더(휴일) 확인 모달 -->
 <div id="htk-calendar-modal" class="fixed inset-0 bg-black/60 hidden z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
@@ -742,7 +705,6 @@
         </div>
     </div>
 </div>
-
 <!-- 🛡️ 무사고 기준일 설정 및 관리 모달 -->
 <div id="safety-modal" class="fixed inset-0 bg-black/60 hidden z-[85] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-surface w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-border">
@@ -760,7 +722,6 @@
                 <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight" id="safety-modal-preview">무사고 1일차</div>
                 <p class="text-xs text-text-muted mt-1.5 leading-relaxed">평가4부의 안전한 무재해 사업장 달성을 기원합니다.</p>
             </div>
-
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-text-muted mb-1.5">무사고 시작 기준일</label>
@@ -2256,6 +2217,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
         return p.length === 3 ? `${p[0].slice(2)}.${p[1]}.${p[2]}` : todayStrLocal();
     }
 
+    // 담당자 다중 파싱 및 검사 헬퍼
+    function parseAssignees(assigneeStr) {
+        if (!assigneeStr) return [];
+        return String(assigneeStr).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    function isAssignee(item, username) {
+        if (!item || !username) return false;
+        return parseAssignees(item.assignee).includes(username);
+    }
+
     // ---------- 서버 통신 ----------
     async function loadActions() {
         if (!SCRIPT_URL.startsWith("https")) return;
@@ -2280,7 +2251,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
     // ---------- 배지 ----------
     function myOpenActions() {
         const me = getCurrentUsername();
-        return actionItems.filter(a => a.assignee === me && a.status !== 'done');
+        return actionItems.filter(a => isAssignee(a, me) && a.status !== 'done');
     }
     function isOverdue(a) {
         return a.status !== 'done' && a.dueDate && String(a.dueDate) < todayStrLocal();
@@ -2348,12 +2319,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
             document.getElementById('action-input-detail').value = editItem.detail || '';
             document.getElementById('action-input-due').value = editItem.dueDate || '';
             document.getElementById('action-input-priority').value = editItem.priority || 'normal';
-            // 같은 업무로 묶인 담당자 전원을 불러와 다중 선택 상태로 표시
-            const groupId = editItem.groupId || editItem.id;
-            const siblings = actionItems.filter(a => (a.groupId || a.id) === groupId);
-            actionPickedAssignees = siblings.map(s => s.assignee).filter(Boolean);
-            document.getElementById('action-assignee-note').innerText =
-                '담당자를 추가하면 그 담당자의 항목이 새로 생기고, 선택 해제하면 해당 담당자의 항목이 삭제됩니다. (이미 완료 처리된 항목은 유지됩니다)';
+            actionPickedAssignees = parseAssignees(editItem.assignee);
+            const noteEl = document.getElementById('action-assignee-note');
+            if (noteEl) noteEl.innerText = '담당자를 변경하면 모든 담당자 화면에 함께 반영됩니다.';
         } else {
             document.getElementById('action-form-title').innerText = '새 업무 추가';
             document.getElementById('action-save-label').innerText = '등록';
@@ -2363,7 +2331,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
             document.getElementById('action-input-due').value = '';
             document.getElementById('action-input-priority').value = 'normal';
             actionPickedAssignees = [];
-            document.getElementById('action-assignee-note').innerText = '';
+            const noteEl = document.getElementById('action-assignee-note');
+            if (noteEl) noteEl.innerText = '';
         }
         renderAssigneePicks();
         setTimeout(() => document.getElementById('action-input-title').focus(), 50);
@@ -2397,7 +2366,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
     function toggleAssigneePick(idx) {
         const name = candidateAssignees()[idx];
         if (name === undefined) return;
-        // 신규 등록/수정 모두 다중 선택 가능 (수정 시 담당자 추가·제외를 그대로 반영)
         if (actionPickedAssignees.includes(name)) {
             actionPickedAssignees = actionPickedAssignees.filter(n => n !== name);
         } else {
@@ -2418,51 +2386,23 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
         if (!title) return alert('업무 내용을 입력해주세요.');
         if (actionPickedAssignees.length === 0) return alert('담당자를 선택해주세요.');
 
+        const assigneeStr = actionPickedAssignees.join(', ');
+
         if (editId) {
             const it = actionItems.find(a => a.id === editId);
             if (!it) return;
-            const groupId = it.groupId || it.id;
-            it.groupId = groupId; // 과거에 만들어진 항목(groupId 없음) 보정
-
-            const siblings = actionItems.filter(a => (a.groupId || a.id) === groupId);
-            const existingAssignees = new Set(siblings.map(s => s.assignee));
-            const selectedAssignees = new Set(actionPickedAssignees);
-            const now = todayStrLocal();
-
-            // 1) 계속 선택되어 있는 담당자 → 공통 내용(제목/메모/기한/중요도)만 갱신
-            siblings.filter(s => selectedAssignees.has(s.assignee)).forEach(s => {
-                Object.assign(s, { title, detail, dueDate, priority, groupId });
-                sendToSheet({ action: 'updateAction', ...s });
-            });
-
-            // 2) 새로 추가된 담당자 → 항목 신규 생성
-            actionPickedAssignees.filter(name => !existingAssignees.has(name)).forEach((assignee, i) => {
-                const item = {
-                    id: 'ACT_' + Date.now() + i + Math.floor(Math.random() * 1000),
-                    groupId, title, detail, assigner: me, assignee, dueDate, priority,
-                    status: 'open', createdAt: now, completedAt: '', progressLog: ''
-                };
-                actionItems.push(item);
-                sendToSheet({ action: 'addAction', ...item });
-            });
-
-            // 3) 선택 해제된 담당자 → 항목 삭제 (단, 이미 완료 처리된 항목은 기록 보존을 위해 유지)
-            siblings.filter(s => !selectedAssignees.has(s.assignee) && s.status !== 'done').forEach(s => {
-                actionItems = actionItems.filter(a => a.id !== s.id);
-                sendToSheet({ action: 'deleteAction', id: s.id });
-            });
+            Object.assign(it, { title, detail, dueDate, priority, assignee: assigneeStr });
+            sendToSheet({ action: 'updateAction', ...it });
         } else {
             const now = todayStrLocal();
-            const groupId = 'GRP_' + Date.now() + Math.floor(Math.random() * 10000);
-            actionPickedAssignees.forEach((assignee, i) => {
-                const item = {
-                    id: 'ACT_' + Date.now() + i + Math.floor(Math.random() * 1000),
-                    groupId, title, detail, assigner: me, assignee, dueDate, priority,
-                    status: 'open', createdAt: now, completedAt: '', progressLog: ''
-                };
-                actionItems.push(item);
-                sendToSheet({ action: 'addAction', ...item });
-            });
+            const item = {
+                id: 'ACT_' + Date.now() + Math.floor(Math.random() * 1000),
+                groupId: '',
+                title, detail, assigner: me, assignee: assigneeStr, dueDate, priority,
+                status: 'open', createdAt: now, completedAt: '', progressLog: ''
+            };
+            actionItems.push(item);
+            sendToSheet({ action: 'addAction', ...item });
         }
 
         toggleActionForm(false);
@@ -2488,12 +2428,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
         if (it) toggleActionForm(true, it);
     }
 
-    // ---------- 진행상황 기록 ----------
+    // ---------- 진행상황 한줄 추가 ----------
     function toggleProgressInput(id) {
         const box = document.getElementById(`progress-form-${id}`);
         if (!box) return;
         box.classList.toggle('hidden');
         if (!box.classList.contains('hidden')) {
+            // 편집 폼이 열려있으면 닫기
+            const editBox = document.getElementById(`progress-edit-form-${id}`);
+            if (editBox) editBox.classList.add('hidden');
             setTimeout(() => document.getElementById(`progress-input-${id}`)?.focus(), 30);
         }
     }
@@ -2514,6 +2457,36 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
         syncAfterWrites();
     }
 
+    // ---------- ✏️ 진행상황 전체 수정/편집 ----------
+    function toggleProgressEditForm(id) {
+        const box = document.getElementById(`progress-edit-form-${id}`);
+        if (!box) return;
+        box.classList.toggle('hidden');
+        if (!box.classList.contains('hidden')) {
+            // 한줄 추가 폼이 열려있으면 닫기
+            const addBox = document.getElementById(`progress-form-${id}`);
+            if (addBox) addBox.classList.add('hidden');
+            const textarea = document.getElementById(`progress-edit-textarea-${id}`);
+            if (textarea) {
+                const it = actionItems.find(a => a.id === id);
+                if (it) textarea.value = it.progressLog || '';
+                setTimeout(() => { textarea.focus(); textarea.selectionStart = textarea.value.length; }, 30);
+            }
+        }
+    }
+
+    function saveProgressLog(id) {
+        const textarea = document.getElementById(`progress-edit-textarea-${id}`);
+        if (!textarea) return;
+        const it = actionItems.find(a => a.id === id);
+        if (!it) return;
+        it.progressLog = textarea.value.trim();
+        sendToSheet({ action: 'updateAction', ...it });
+        renderActionList();
+        syncAfterWrites();
+        if (typeof showToast === 'function') showToast('진행상황이 수정되었습니다.', 'success');
+    }
+
     function deleteActionItem(id) {
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
@@ -2529,7 +2502,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
     function filteredActions() {
         const me = getCurrentUsername();
         let list = actionItems.slice();
-        if (actionTab === 'mine') list = list.filter(a => a.assignee === me && a.status !== 'done');
+        if (actionTab === 'mine') list = list.filter(a => isAssignee(a, me) && a.status !== 'done');
         else if (actionTab === 'sent') list = list.filter(a => a.assigner === me && a.status !== 'done');
         else if (actionTab === 'all') list = list.filter(a => a.status !== 'done');
         else list = list.filter(a => a.status === 'done');
@@ -2594,7 +2567,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
             const p = PRIORITY_META[a.priority] || PRIORITY_META.normal;
             const due = dueLabel(a);
             const done = a.status === 'done';
-            const canEdit = a.assigner === me || a.assignee === me;
+            const assignees = parseAssignees(a.assignee);
+            const isGroup = assignees.length > 1;
+            const canEdit = a.assigner === me || isAssignee(a, me);
+
             return `
             <div class="act-card act-p-${a.priority || 'normal'} ${isOverdue(a) ? 'act-overdue' : ''} ${done ? 'act-done' : ''}">
                 <div class="flex items-start gap-2.5">
@@ -2605,23 +2581,48 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                             <span class="act-chip ${p.cls}">${p.label}</span>
                         </div>
                         ${a.detail ? `<div class="act-detail">${escHtml(a.detail)}</div>` : ''}
-                        ${a.progressLog ? `<div class="act-progress">${a.progressLog.split('\n').filter(Boolean).map(l => `<div class="act-progress-line">${escHtml(l)}</div>`).join('')}</div>` : ''}
+
+                        ${a.progressLog ? `
+                        <div class="act-progress">
+                            <div class="act-progress-header">
+                                <span class="act-progress-label">진행상황</span>
+                                ${canEdit ? `
+                                <button onclick="toggleProgressEditForm('${a.id}')" class="text-[10.5px] font-bold text-primary hover:underline flex items-center gap-0.5" title="진행상황 기록 수정/삭제">
+                                    <span class="material-symbols-outlined text-[13px]">edit_note</span>수정
+                                </button>` : ''}
+                            </div>
+                            <div id="progress-lines-${a.id}">
+                                ${a.progressLog.split('\n').filter(Boolean).map(l => `<div class="act-progress-line">${escHtml(l)}</div>`).join('')}
+                            </div>
+                            ${canEdit ? `
+                            <div id="progress-edit-form-${a.id}" class="act-progress-edit-form hidden mt-2 flex flex-col gap-1.5 bg-body p-2 rounded-lg border border-border">
+                                <textarea id="progress-edit-textarea-${a.id}" rows="3" class="w-full bg-surface border border-border text-text-main text-[11px] rounded p-1.5 outline-none focus:border-primary" placeholder="진행상황을 여러 줄로 편집하세요">${escHtml(a.progressLog || '')}</textarea>
+                                <div class="flex justify-end gap-1.5">
+                                    <button onclick="toggleProgressEditForm('${a.id}')" class="text-[10.5px] font-bold text-text-muted hover:text-text-main px-2 py-1 rounded">취소</button>
+                                    <button onclick="saveProgressLog('${a.id}')" class="text-[10.5px] font-bold text-white bg-primary px-2.5 py-1 rounded">저장</button>
+                                </div>
+                            </div>` : ''}
+                        </div>` : ''}
+
                         <div class="flex items-center justify-between gap-2 mt-2">
                             <div class="act-meta flex items-center gap-1 flex-wrap">
-                                <span class="material-symbols-outlined text-[13px]">person</span>${escHtml(a.assignee)}
-                                <span class="opacity-40">←</span>${escHtml(a.assigner || '?')}
+                                <span class="material-symbols-outlined text-[13px]">${isGroup ? 'groups' : 'person'}</span>
+                                <span class="font-bold">${escHtml(assignees.join(', '))}</span>
+                                <span class="opacity-40">←</span>
+                                <span>${escHtml(a.assigner || '?')}</span>
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
                                 <span class="act-meta ${due.cls}">${due.text}</span>
                                 ${canEdit ? `
-                                <button onclick="toggleProgressInput('${a.id}')" class="text-text-muted hover:text-green-600 p-0.5" title="진행상황 기록 추가"><span class="material-symbols-outlined text-[15px]">post_add</span></button>
+                                <button onclick="toggleProgressInput('${a.id}')" class="text-text-muted hover:text-green-600 p-0.5" title="진행상황 한 줄 추가"><span class="material-symbols-outlined text-[15px]">post_add</span></button>
                                 <button onclick="editActionItem('${a.id}')" class="text-text-muted hover:text-primary p-0.5" title="수정"><span class="material-symbols-outlined text-[15px]">edit</span></button>
                                 <button onclick="deleteActionItem('${a.id}')" class="text-text-muted hover:text-red-500 p-0.5" title="삭제"><span class="material-symbols-outlined text-[15px]">delete</span></button>` : ''}
                             </div>
                         </div>
+
                         ${canEdit ? `
                         <div id="progress-form-${a.id}" class="act-progress-form hidden mt-2 flex items-center gap-1.5">
-                            <input type="text" id="progress-input-${a.id}" placeholder="진행상황 입력 (예: 부품 발주 완료) - 날짜는 자동으로 붙습니다" class="flex-1 bg-background border border-border text-text-main text-[11px] rounded-lg px-2 py-1.5 outline-none focus:border-primary" onkeydown="if(event.key==='Enter'){addProgressLog('${a.id}')}">
+                            <input type="text" id="progress-input-${a.id}" placeholder="진행상황 입력 (예: 부품 발주 완료) - 날짜·이름 자동 부착" class="flex-1 bg-background border border-border text-text-main text-[11px] rounded-lg px-2 py-1.5 outline-none focus:border-primary" onkeydown="if(event.key==='Enter'){addProgressLog('${a.id}')}">
                             <button onclick="addProgressLog('${a.id}')" class="text-[11px] font-bold text-white bg-primary px-2.5 py-1.5 rounded-lg flex-shrink-0">추가</button>
                         </div>` : ''}
                     </div>
@@ -3758,7 +3759,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
 <!-- 🔍 통합 일정/작업 이력 검색 모달 -->
 <div id="search-modal" class="fixed inset-0 bg-black/60 hidden z-[95] flex items-start md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
     <div class="bg-surface w-full h-full md:h-[88vh] md:max-w-4xl md:rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
-        
         <!-- 검색 상단 바 -->
         <div class="p-4 md:p-5 border-b border-border bg-surface flex flex-col gap-3 flex-shrink-0">
             <div class="flex items-center justify-between">
@@ -3773,7 +3773,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                     <button onclick="closeSearchModal()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
                 </div>
             </div>
-
             <!-- 검색창 인풋 -->
             <div class="relative">
                 <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-[20px]">search</span>
@@ -3784,7 +3783,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                     <span class="material-symbols-outlined text-[18px]">cancel</span>
                 </button>
             </div>
-
             <!-- 빠른 필터 칩 & 정렬 -->
             <div class="flex items-center justify-between flex-wrap gap-2 pt-1">
                 <!-- 분류 필터 -->
@@ -3796,7 +3794,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                     <button type="button" class="search-filter-chip" data-filter="parts" onclick="setSearchFilter('parts')">🔵 부품교체</button>
                     <button type="button" class="search-filter-chip" data-filter="vacation" onclick="setSearchFilter('vacation')">🏖️ 휴가</button>
                 </div>
-
                 <!-- 정렬 및 기간 -->
                 <div class="flex items-center gap-2 ml-auto">
                     <select id="search-sort" onchange="performSearch()" class="bg-background border border-border text-text-main text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none">
@@ -3806,13 +3803,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                 </div>
             </div>
         </div>
-
         <!-- 검색 요약 헤더 -->
         <div id="search-summary-bar" class="px-5 py-2.5 bg-background border-b border-border flex items-center justify-between text-xs font-bold text-text-muted flex-shrink-0">
             <span id="search-result-count">검색어를 입력하면 전체 이력을 검색합니다.</span>
             <span id="search-keyword-badge" class="hidden text-primary font-black"></span>
         </div>
-
         <!-- 검색 결과 리스트 -->
         <div id="search-result-list" class="flex-1 overflow-y-auto p-4 md:p-5 space-y-2.5">
             <!-- 검색 안내 초기 화면 -->
@@ -3830,9 +3825,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzTrcEWRNySef7AuMsR0
                 </div>
             </div>
         </div>
-
     </div>
 </div>
-
 </body>
 </html>
