@@ -50,7 +50,87 @@ html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !impor
 .delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
 .event-card:hover .delete-btn { opacity: 1; }
 
-/* ===== ✅ Action Required List ===== */
+/* 🌟 달력 날짜 셀 내 Action 항목 칩 스타일 (3번 기능) */
+.act-cell-chip {
+    position: relative;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(124, 58, 237, 0.18) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-left: 3.5px solid #7c3aed;
+    color: #6d28d9;
+    box-shadow: 0 1px 3px rgba(124, 58, 237, 0.08);
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.25;
+    word-break: break-word;
+}
+html.dark .act-cell-chip {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(109, 40, 217, 0.3) 100%);
+    border-color: rgba(167, 139, 250, 0.4);
+    border-left-color: #a78bfa;
+    color: #ddd6fe;
+}
+.act-cell-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(124, 58, 237, 0.2);
+    border-color: #7c3aed;
+}
+.act-cell-chip.act-cell-overdue {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(220, 38, 38, 0.18) 100%);
+    border-color: rgba(239, 68, 68, 0.4);
+    border-left-color: #dc2626;
+    color: #b91c1c;
+}
+html.dark .act-cell-chip.act-cell-overdue {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.22) 0%, rgba(185, 28, 28, 0.3) 100%);
+    border-left-color: #f87171;
+    color: #fca5a5;
+}
+
+/* 🌟 캘린더 최상단 '내 할 일 위젯 바' 스타일 (1번 기능) */
+.action-top-widget {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+}
+.act-widget-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+}
+.act-widget-item:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.act-widget-badge {
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+}
+
+/* ===== ✅ Action Required List Drawer ===== */
 #action-drawer { transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
 .act-badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
     border-radius: 9px; font-size: 10px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center; line-height: 1; }
@@ -365,7 +445,25 @@ html.dark .safety-days {
             </div>
         </div>
     </div>
-    <div id="calendar-pc-container" class="hidden md:block space-y-12 overflow-x-auto mt-4 md:mt-8"></div>
+    <!-- 📋 상단 내 할 일(Action) 알림 위젯 바 -->
+    <div id="action-top-widget" class="action-top-widget mt-2 md:mt-3 hidden">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-[20px] flex-shrink-0">assignment_late</span>
+                <span id="action-top-widget-title" class="text-xs md:text-sm font-black text-text-main flex-shrink-0">내 할 일</span>
+                <div id="action-top-widget-items" class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1"></div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+                <button onclick="toggleActionForm(true); openActionDrawer();" class="text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">add</span>업무지시
+                </button>
+                <button onclick="openActionDrawer()" class="text-[11px] font-bold text-text-muted hover:text-text-main bg-background border border-border px-2 py-1 rounded-lg flex items-center gap-0.5 transition-colors">
+                    전체보기 <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="calendar-pc-container" class="hidden md:block space-y-12 overflow-x-auto mt-4 md:mt-6"></div>
     <div id="calendar-mobile-container" class="block md:hidden mt-4"></div>
 </main>
 </div>
@@ -1333,11 +1431,21 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
                 return `<div class="text-[9px] text-white truncate px-1 rounded-[2px] mt-[2px] ${catBg}">${ev.title}</div>`;
             }).join('');
 
+            // 🌟 모바일 달력 셀 내 본인 Action 뱃지 표시
+            let actBadgeHtml = '';
+            if (typeof actionItems !== 'undefined' && actionItems.length > 0 && typeof getCurrentUsername === 'function') {
+                const me = getCurrentUsername();
+                const myActs = actionItems.filter(a => isAssignee(a, me) && a.status !== 'done' && a.dueDate === dateStr);
+                if (myActs.length > 0) {
+                    actBadgeHtml = `<div class="text-[9px] text-white truncate px-1 rounded-[2px] mt-[2px] bg-purple-600 font-bold flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">check_circle</span>할일 ${myActs.length}건</div>`;
+                }
+            }
+
             if (dayEvents.length > 3) eventsHtml += `<div class="text-[9px] font-bold text-text-muted text-center mt-[2px]">+${dayEvents.length - 3}건</div>`;
 
             const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${day}</span>` : `<span>${day}</span>`;
 
-            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${eventsHtml}</div></div>`;
+            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${actBadgeHtml}${eventsHtml}</div></div>`;
         }
         container.appendChild(grid);
 
@@ -1516,6 +1624,29 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
 
         // 6) 연속 막대 렌더링
         placements.forEach(p => appendSpanBar(p));
+
+        // 7) 🌟 3번 기능: 본인의 Action 태스크 마감 칩을 해당 날짜 셀에 직접 렌더링
+        if (typeof renderActionChipsForDate === 'function') {
+            document.querySelectorAll('#calendar-pc-container .grid-schedule').forEach(grid => {
+                const dates = new Set();
+                grid.querySelectorAll('.grid-cell[data-date]').forEach(c => {
+                    const d = c.dataset.date;
+                    if (isDayDate(d)) dates.add(d);
+                });
+                dates.forEach(dStr => {
+                    const chipHtml = renderActionChipsForDate(dStr);
+                    if (chipHtml) {
+                        const firstLineCell = grid.querySelector(`.grid-cell[data-date="${dStr}"]`);
+                        if (firstLineCell) {
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'act-cell-wrapper flex flex-col gap-1 my-0.5';
+                            wrapper.innerHTML = chipHtml;
+                            firstLineCell.appendChild(wrapper);
+                        }
+                    }
+                });
+            });
+        }
     }
 
     function appendSpanBar(p) {
@@ -1630,6 +1761,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         }
 
         container.innerHTML = '';
+
+        // 🌟 모바일 상세 뷰 내 본인 Action 업무 섹션
+        if (!isNotes && typeof renderActionChipsForDate === 'function') {
+            const actHtml = renderActionChipsForDate(dateStr);
+            if (actHtml) {
+                const actSection = document.createElement('div');
+                actSection.className = 'mb-3 flex flex-col gap-1.5 p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30';
+                actSection.innerHTML = `<div class="text-[11px] font-black text-purple-700 dark:text-purple-300 flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">assignment_turned_in</span> 내 할 일 마감</div>` + actHtml;
+                container.appendChild(actSection);
+            }
+        }
+
         let dayEvents = isNotes 
             ? (dateStr.includes('-W') ? cachedEvents.filter(ev => ev.date === dateStr) : cachedEvents.filter(ev => ev.date.startsWith(`note-${currentYear}-${currentMonth}`)))
             : cachedEvents.filter(ev => ev.date === dateStr);
@@ -2206,6 +2349,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
     let actionTab = 'mine';
     let actionBackendReady = true;   // Apps Script 업데이트 여부
     let actionPickedAssignees = [];
+    let actionAlertCheckedThisSession = false; // 세션당 1회 팝업 제어
 
     function escHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -2244,7 +2388,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             console.error('Action 목록 로드 실패:', e);
         }
         updateActionBadge();
-        checkActionNotifications();   // 나에게 온 변화만 감지해 개인 알림
+        renderTopActionWidget();     // 🌟 1번 기능: 상단 내 할 일 위젯 바 렌더링
+        checkNewActionAlerts();      // 🌟 2번 기능: 새 업무 도착 팝업 검사
+        if (typeof renderCalendar === 'function') renderCalendar(); // 🌟 3번 기능: 달력 내 Action 칩 연동
+        checkActionNotifications();  // 브라우저 알림
         if (!document.getElementById('action-drawer').classList.contains('translate-x-full')) renderActionList();
     }
 
@@ -2276,6 +2423,175 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             m.innerText = label;
             m.style.background = color;
         }
+    }
+
+    // 🌟 1번 기능: 캘린더 최상단 '내 할 일 위젯 바' 렌더링
+    function renderTopActionWidget() {
+        const widget = document.getElementById('action-top-widget');
+        const itemsWrap = document.getElementById('action-top-widget-items');
+        const titleEl = document.getElementById('action-top-widget-title');
+        if (!widget || !itemsWrap) return;
+
+        const me = getCurrentUsername();
+        if (!me) {
+            widget.classList.add('hidden');
+            return;
+        }
+
+        const mine = myOpenActions();
+        if (mine.length === 0) {
+            widget.classList.add('hidden');
+            return;
+        }
+
+        widget.classList.remove('hidden');
+        if (titleEl) titleEl.innerText = `내 할 일 (${mine.length}건)`;
+
+        // 마감 기한 순 정렬
+        const sorted = mine.slice().sort((a, b) => {
+            const ad = a.dueDate || '9999-99-99', bd = b.dueDate || '9999-99-99';
+            return ad.localeCompare(bd);
+        });
+
+        itemsWrap.innerHTML = sorted.slice(0, 5).map(a => {
+            const due = dueLabel(a);
+            const overdue = isOverdue(a);
+            const isToday = a.dueDate === todayStrLocal();
+            const badgeBg = overdue ? 'bg-red-600 text-white' : (isToday ? 'bg-orange-500 text-white' : 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200');
+            return `
+            <div class="act-widget-item" onclick="openActionDrawer(); switchActionTab('mine');" title="${escHtml(a.title)} (지시: ${escHtml(a.assigner || '?')}, 기한: ${a.dueDate || '없음'})">
+                <span class="act-widget-badge ${badgeBg}">${overdue ? '기한초과' : (isToday ? '오늘마감' : due.text)}</span>
+                <span class="truncate max-w-[140px] md:max-w-[220px] font-bold">${escHtml(a.title)}</span>
+                <span class="text-[10px] text-text-muted">← ${escHtml(a.assigner || '?')}</span>
+            </div>`;
+        }).join('') + (sorted.length > 5 ? `<span class="text-[11px] font-bold text-text-muted px-1">+${sorted.length - 5}건 더보기</span>` : '');
+    }
+
+    // 🌟 2번 기능: 새 업무 도착 및 긴급 업무 팝업 모달
+    const SEEN_ACTIONS_KEY = 'hitachi_seen_action_ids_v1';
+
+    function getSeenActionIds() {
+        try {
+            return JSON.parse(localStorage.getItem(SEEN_ACTIONS_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveSeenActionIds(ids) {
+        try {
+            localStorage.setItem(SEEN_ACTIONS_KEY, JSON.stringify(ids));
+        } catch (e) {}
+    }
+
+    function checkNewActionAlerts() {
+        if (actionAlertCheckedThisSession) return;
+        const me = getCurrentUsername();
+        if (!me) return;
+
+        const mine = myOpenActions();
+        if (mine.length === 0) return;
+
+        const seenIds = new Set(getSeenActionIds());
+        const newItems = mine.filter(a => !seenIds.has(a.id));
+        const urgentItems = mine.filter(a => isOverdue(a) || a.dueDate === todayStrLocal());
+
+        // 새 항목이 있거나 오늘 마감/기한초과 항목이 있으면 팝업
+        const alertItems = newItems.length > 0 ? newItems : (urgentItems.length > 0 && !seenIds.has('URGENT_TODAY_' + todayStrLocal()) ? urgentItems : []);
+
+        if (alertItems.length > 0) {
+            actionAlertCheckedThisSession = true;
+            showNewActionModal(alertItems, me);
+        }
+    }
+
+    function showNewActionModal(items, username) {
+        const modal = document.getElementById('new-action-modal');
+        const card = document.getElementById('new-action-modal-card');
+        const userEl = document.getElementById('new-action-user-name');
+        const listEl = document.getElementById('new-action-modal-list');
+        if (!modal || !listEl) return;
+
+        if (userEl) userEl.innerText = escHtml(username);
+
+        listEl.innerHTML = items.map(a => {
+            const p = PRIORITY_META[a.priority] || PRIORITY_META.normal;
+            const due = dueLabel(a);
+            const overdue = isOverdue(a);
+            const isToday = a.dueDate === todayStrLocal();
+            const badgeCls = overdue ? 'bg-red-500 text-white' : (isToday ? 'bg-orange-500 text-white' : p.cls);
+
+            return `
+            <div class="bg-surface p-3.5 rounded-xl border border-border flex items-start justify-between gap-3 shadow-sm hover:border-purple-500/50 transition-colors">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[10px] font-black px-2 py-0.5 rounded ${badgeCls}">${overdue ? '기한 초과' : (isToday ? '오늘 마감' : due.text)}</span>
+                        <span class="text-[10px] font-bold text-text-muted">지시자: ${escHtml(a.assigner || '?')}</span>
+                    </div>
+                    <h4 class="text-xs md:text-sm font-bold text-text-main leading-snug break-words">${escHtml(a.title)}</h4>
+                    ${a.detail ? `<p class="text-[11px] text-text-muted mt-1 line-clamp-2">${escHtml(a.detail)}</p>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            card.classList.remove('scale-95', 'opacity-0');
+            card.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeNewActionModal(markRead = true) {
+        const modal = document.getElementById('new-action-modal');
+        const card = document.getElementById('new-action-modal-card');
+        if (!modal) return;
+
+        if (card) {
+            card.classList.remove('scale-100', 'opacity-100');
+            card.classList.add('scale-95', 'opacity-0');
+        }
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 200);
+
+        if (markRead) {
+            // 현재 내 액션 아이템들의 ID를 모두 읽음 처리
+            const currentIds = actionItems.map(a => a.id);
+            currentIds.push('URGENT_TODAY_' + todayStrLocal());
+            saveSeenActionIds(currentIds);
+        }
+    }
+
+    function openActionDrawerFromModal() {
+        closeNewActionModal(true);
+        openActionDrawer();
+        switchActionTab('mine');
+    }
+
+    // 🌟 3번 기능: 캘린더 날짜 셀 내부에 렌더링할 Action 태스크 칩 HTML 생성
+    function renderActionChipsForDate(dateStr) {
+        const me = getCurrentUsername();
+        if (!me || !actionItems.length) return '';
+
+        // 해당 날짜가 마감일(dueDate)이거나, 오늘 날짜인데 미완료인 본인 액션
+        const dateActions = actionItems.filter(a => {
+            if (!isAssignee(a, me) || a.status === 'done') return false;
+            return a.dueDate === dateStr;
+        });
+
+        if (dateActions.length === 0) return '';
+
+        return dateActions.map(a => {
+            const overdue = isOverdue(a);
+            return `
+            <div class="act-cell-chip ${overdue ? 'act-cell-overdue' : ''}" 
+                 onclick="event.stopPropagation(); openActionDrawer(); switchActionTab('mine');" 
+                 title="[내 할일 마감] ${escHtml(a.title)} (지시: ${escHtml(a.assigner || '?')})">
+                <span class="material-symbols-outlined text-[13px] flex-shrink-0">check_circle</span>
+                <span class="truncate">${escHtml(a.title)}</span>
+            </div>`;
+        }).join('');
     }
 
     // ---------- 드로어 ----------
@@ -2341,7 +2657,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
     function candidateAssignees() {
         const me = getCurrentUsername();
         const list = teamMembers.slice();
-        if (me && !list.includes(me)) list.unshift(me);   // 팀원 목록에 없어도 본인은 항상 선택 가능
+        if (me && !list.includes(me)) list.unshift(me);
         return list;
     }
 
@@ -2408,6 +2724,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         toggleActionForm(false);
         renderActionList();
         updateActionBadge();
+        renderTopActionWidget();
+        if (typeof renderCalendar === 'function') renderCalendar();
         syncAfterWrites();
     }
 
@@ -2420,6 +2738,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         sendToSheet({ action: 'updateAction', ...it });
         renderActionList();
         updateActionBadge();
+        renderTopActionWidget();
+        if (typeof renderCalendar === 'function') renderCalendar();
         syncAfterWrites();
     }
 
@@ -2434,7 +2754,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         if (!box) return;
         box.classList.toggle('hidden');
         if (!box.classList.contains('hidden')) {
-            // 편집 폼이 열려있으면 닫기
             const editBox = document.getElementById(`progress-edit-form-${id}`);
             if (editBox) editBox.classList.add('hidden');
             setTimeout(() => document.getElementById(`progress-input-${id}`)?.focus(), 30);
@@ -2463,7 +2782,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         if (!box) return;
         box.classList.toggle('hidden');
         if (!box.classList.contains('hidden')) {
-            // 한줄 추가 폼이 열려있으면 닫기
             const addBox = document.getElementById(`progress-form-${id}`);
             if (addBox) addBox.classList.add('hidden');
             const textarea = document.getElementById(`progress-edit-textarea-${id}`);
@@ -2495,6 +2813,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         sendToSheet({ action: 'deleteAction', id });
         renderActionList();
         updateActionBadge();
+        renderTopActionWidget();
+        if (typeof renderCalendar === 'function') renderCalendar();
         syncAfterWrites();
     }
 
@@ -2511,7 +2831,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         if (actionTab === 'done') {
             list.sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
         } else {
-            // 기한 지남 → 기한 임박 → 기한 없음, 같은 조건이면 중요도 순
             list.sort((a, b) => {
                 const ad = a.dueDate || '9999-99-99', bd = b.dueDate || '9999-99-99';
                 if (ad !== bd) return ad.localeCompare(bd);
@@ -3824,6 +4143,35 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
                     <button onclick="quickSearch('부품교체')" class="px-2.5 py-1 bg-background hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs font-bold border border-border">부품교체</button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+<!-- 🔔 새 업무 지시 도착 팝업 모달 (2번 기능) -->
+<div id="new-action-modal" class="fixed inset-0 bg-black/60 hidden z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div id="new-action-modal-card" class="bg-surface w-full max-w-lg rounded-2xl shadow-2xl border border-purple-500/30 overflow-hidden transform transition-all duration-300 scale-95 opacity-0">
+        <div class="p-5 border-b border-border bg-gradient-to-r from-purple-600/15 via-indigo-600/10 to-transparent flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 flex-shrink-0">
+                    <span class="material-symbols-outlined text-[24px]">notification_important</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-text-main flex items-center gap-1.5">
+                        <span id="new-action-user-name"></span>님, 확인이 필요한 업무가 있습니다!
+                    </h3>
+                    <p class="text-[11.5px] text-text-muted mt-0.5">새로 도착한 업무 지시 및 긴급 일정을 확인해주세요.</p>
+                </div>
+            </div>
+            <button onclick="closeNewActionModal(true)" class="text-text-muted hover:text-text-main p-1.5"><span class="material-symbols-outlined text-[20px]">close</span></button>
+        </div>
+        <div id="new-action-modal-list" class="p-5 max-h-[50vh] overflow-y-auto space-y-2.5 bg-background/50"></div>
+        <div class="p-4 bg-surface border-t border-border flex items-center justify-between gap-3">
+            <button onclick="closeNewActionModal(true)" class="text-xs font-bold text-text-muted hover:text-text-main px-3 py-2 rounded-xl transition-colors">
+                확인 완료 (닫기)
+            </button>
+            <button onclick="openActionDrawerFromModal()" class="text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl shadow-lg shadow-purple-600/25 flex items-center gap-1.5 transition-all">
+                <span>Action List에서 지금 확인하기</span>
+                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </button>
         </div>
     </div>
 </div>
