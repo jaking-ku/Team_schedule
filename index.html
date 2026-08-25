@@ -314,6 +314,33 @@ html.dark .safety-label {
 html.dark .safety-days {
     color: #6ee7b7;
 }
+
+/* 🗑️ 휴지통 탭 및 배지 스타일 */
+.trash-tab {
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    border-color: var(--border-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.trash-tab.active {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+.trash-tab-badge {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    background: rgba(0, 0, 0, 0.12);
+    color: inherit;
+    border-radius: 9999px;
+}
+.trash-tab.active .trash-tab-badge {
+    background: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+}
     </style>
 </head>
 <body class="flex min-h-screen">
@@ -374,6 +401,9 @@ html.dark .safety-days {
         </button>
         <button class="nav-item" onclick="navAction('openTeamModal')">
             <span class="material-symbols-outlined">groups</span> 팀원 관리
+        </button>
+        <button class="nav-item" onclick="navAction('openTrashModal')">
+            <span class="material-symbols-outlined text-red-500">delete_sweep</span> 휴지통 / 복구
         </button>
     </nav>
     <!-- 하단 고정 영역 -->
@@ -512,6 +542,9 @@ html.dark .safety-days {
             <p id="action-subtitle" class="text-[11px] text-text-muted font-bold mt-0.5"></p>
         </div>
         <div class="flex items-center gap-1">
+            <button onclick="openTrashModal('action')" class="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-background" title="삭제된 업무 복구 (휴지통)">
+                <span class="material-symbols-outlined text-[20px]">delete_outline</span>
+            </button>
             <button id="notify-toggle" onclick="toggleBrowserNotify()" class="p-1.5 rounded-lg text-text-muted hover:bg-background" title="내 업무 브라우저 알림">
                 <span class="material-symbols-outlined text-[20px]" id="notify-icon">notifications_off</span>
             </button>
@@ -1942,6 +1975,52 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         }
     }
 
+    // ---------- ♻️ 일정 휴지통 복구 및 관리 함수 ----------
+    function getEventsTrash() {
+        try {
+            return JSON.parse(localStorage.getItem(EVENTS_TRASH_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function restoreEventFromTrash(id) {
+        let trash = getEventsTrash();
+        const target = trash.find(ev => ev.id === id);
+        if (!target) return alert('복원할 일정을 찾을 수 없습니다.');
+
+        trash = trash.filter(ev => ev.id !== id);
+        localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify(trash));
+
+        const restored = { ...target };
+        delete restored.deletedAt;
+
+        cachedEvents.push(restored);
+        sendToSheet({ action: 'add', ...restored });
+        saveLocalEventsSnapshot();
+
+        renderCalendarUI();
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast(`'${restored.title}' 일정이 복원되었습니다.`, 'success');
+        syncAfterWrites();
+    }
+
+    function deletePermanentlyEvent(id) {
+        if (!confirm('이 일정을 휴지통에서 영구히 삭제하시겠습니까? 복구할 수 없습니다.')) return;
+        let trash = getEventsTrash();
+        trash = trash.filter(ev => ev.id !== id);
+        localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify(trash));
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast('일정이 영구 삭제되었습니다.', 'info');
+    }
+
+    function clearEventsTrash() {
+        if (!confirm('캘린더 일정 휴지통을 모두 비우시겠습니까?')) return;
+        localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify([]));
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast('캘린더 일정 휴지통을 비웠습니다.', 'info');
+    }
+
     // 🚀 저장 및 즉시 반영 기능 (Optimistic UI + 로컬 스냅샷 2중 보존)
     function saveEventFromModal() {
         const id = document.getElementById('modal-event-id').value;
@@ -2371,9 +2450,55 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         return parseAssignees(item.assignee).includes(username);
     }
 
+    // ===== 💾 Action List 로컬 스냅샷 및 휴지통 (Zero Data Loss 안전망) =====
+    const ACTIONS_SNAPSHOT_KEY = 'hitachi_actions_cache_snapshot';
+    const ACTIONS_TRASH_KEY = 'hitachi_deleted_actions_trash';
+
+    function saveLocalActionsSnapshot() {
+        try {
+            localStorage.setItem(ACTIONS_SNAPSHOT_KEY, JSON.stringify(actionItems));
+        } catch (e) {
+            console.error('Action 로컬 스냅샷 저장 실패:', e);
+        }
+    }
+
+    function loadLocalActionsSnapshot() {
+        try {
+            const raw = localStorage.getItem(ACTIONS_SNAPSHOT_KEY);
+            if (raw) {
+                const data = JSON.parse(raw);
+                if (Array.isArray(data)) return data;
+            }
+        } catch (e) {
+            console.error('Action 로컬 스냅샷 로드 실패:', e);
+        }
+        return null;
+    }
+
+    function saveDeletedActionToTrash(item) {
+        try {
+            const trash = JSON.parse(localStorage.getItem(ACTIONS_TRASH_KEY) || '[]');
+            const stamp = toDateStr(new Date());
+            trash.unshift({ ...item, deletedAt: stamp });
+            localStorage.setItem(ACTIONS_TRASH_KEY, JSON.stringify(trash.slice(0, 100)));
+        } catch (e) {
+            console.error('Action 휴지통 보관 실패:', e);
+        }
+    }
+
     // ---------- 서버 통신 ----------
     async function loadActions() {
         if (!SCRIPT_URL.startsWith("https")) return;
+
+        // 저장 요청이나 미전송 큐가 남아 있으면 서버에서 덮어쓰지 않는다 (Silent Rollback 완벽 방지)
+        const pendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
+        if (pendingWrites > 0 || pendingQueue.length > 0) {
+            if (pendingQueue.length > 0 && typeof flushPendingQueue === 'function') {
+                flushPendingQueue();
+            }
+            return;
+        }
+
         try {
             const res = await fetch(SCRIPT_URL + "?t=" + new Date().getTime(),
                 { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'readActions' }) });
@@ -2381,6 +2506,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             if (Array.isArray(data)) {
                 actionItems = data.filter(a => a && a.id);
                 actionBackendReady = true;
+                saveLocalActionsSnapshot();
             } else {
                 actionBackendReady = false;   // 구버전 Apps Script
             }
@@ -2709,6 +2835,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
             sendToSheet({ action: 'addAction', ...item });
         }
 
+        saveLocalActionsSnapshot();
         toggleActionForm(false);
         renderActionList();
         updateActionBadge();
@@ -2724,6 +2851,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         it.status = done ? 'done' : 'open';
         it.completedAt = done ? todayStrLocal() : '';
         sendToSheet({ action: 'updateAction', ...it });
+        saveLocalActionsSnapshot();
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
@@ -2759,6 +2887,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         const line = `${shortDateLocal()} / ${me ? me + ' ' : ''}${text}`;
         it.progressLog = it.progressLog ? (it.progressLog + '\n' + line) : line;
         sendToSheet({ action: 'updateAction', ...it });
+        saveLocalActionsSnapshot();
         input.value = '';
         renderActionList();
         syncAfterWrites();
@@ -2788,6 +2917,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         if (!it) return;
         it.progressLog = textarea.value.trim();
         sendToSheet({ action: 'updateAction', ...it });
+        saveLocalActionsSnapshot();
         renderActionList();
         syncAfterWrites();
         if (typeof showToast === 'function') showToast('진행상황이 수정되었습니다.', 'success');
@@ -2797,13 +2927,67 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         if (!confirm(`'${it.title}' 항목을 삭제하시겠습니까?`)) return;
+        saveDeletedActionToTrash(it);
         actionItems = actionItems.filter(a => a.id !== id);
         sendToSheet({ action: 'deleteAction', id });
+        saveLocalActionsSnapshot();
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
         if (typeof renderCalendar === 'function') renderCalendar();
+        showToast('업무가 삭제되었습니다. (휴지통에 안전 보관됨)', 'info');
         syncAfterWrites();
+    }
+
+    // ---------- ♻️ 휴지통 복구 및 관리 함수 ----------
+    function getActionsTrash() {
+        try {
+            return JSON.parse(localStorage.getItem(ACTIONS_TRASH_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function restoreActionFromTrash(id) {
+        let trash = getActionsTrash();
+        const target = trash.find(a => a.id === id);
+        if (!target) return alert('복원할 업무를 찾을 수 없습니다.');
+
+        // 휴지통에서 제거
+        trash = trash.filter(a => a.id !== id);
+        localStorage.setItem(ACTIONS_TRASH_KEY, JSON.stringify(trash));
+
+        // 복원 시 deletedAt 제거
+        const restored = { ...target };
+        delete restored.deletedAt;
+
+        actionItems.push(restored);
+        sendToSheet({ action: 'addAction', ...restored });
+        saveLocalActionsSnapshot();
+
+        renderActionList();
+        updateActionBadge();
+        renderTopActionWidget();
+        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast(`'${restored.title}' 업무가 복원되었습니다.`, 'success');
+        syncAfterWrites();
+    }
+
+    function deletePermanentlyAction(id) {
+        if (!confirm('이 업무를 휴지통에서 영구히 삭제하시겠습니까? 복구할 수 없습니다.')) return;
+        let trash = getActionsTrash();
+        trash = trash.filter(a => a.id !== id);
+        localStorage.setItem(ACTIONS_TRASH_KEY, JSON.stringify(trash));
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast('휴지통에서 영구 삭제되었습니다.', 'info');
+    }
+
+    function clearActionsTrash() {
+        if (!confirm('Action 업무 휴지통을 모두 비우시겠습니까?')) return;
+        localStorage.setItem(ACTIONS_TRASH_KEY, JSON.stringify([]));
+        if (typeof renderTrashList === 'function') renderTrashList();
+        showToast('Action 휴지통을 비웠습니다.', 'info');
     }
 
     // ---------- 목록 렌더링 ----------
@@ -3592,6 +3776,126 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
     function closeAlarmModal() { document.getElementById('alarm-modal').classList.add('hidden'); }
     // ===========================
 
+    // ===== 🗑️ 휴지통 (삭제 데이터 복구 모달) =====
+    let currentTrashTab = 'action'; // 'action' | 'event'
+
+    function openTrashModal(defaultTab) {
+        if (defaultTab) currentTrashTab = defaultTab;
+        document.getElementById('trash-modal').classList.remove('hidden');
+        switchTrashTab(currentTrashTab);
+    }
+
+    function closeTrashModal() {
+        document.getElementById('trash-modal').classList.add('hidden');
+    }
+
+    function switchTrashTab(tab) {
+        currentTrashTab = tab;
+        document.querySelectorAll('.trash-tab').forEach(el => {
+            el.classList.toggle('active', el.dataset.tab === tab);
+        });
+        renderTrashList();
+    }
+
+    function renderTrashList() {
+        const listEl = document.getElementById('trash-items-list');
+        const badgeAction = document.getElementById('trash-badge-action');
+        const badgeEvent = document.getElementById('trash-badge-event');
+        const summaryEl = document.getElementById('trash-summary-text');
+        if (!listEl) return;
+
+        const actionTrash = typeof getActionsTrash === 'function' ? getActionsTrash() : [];
+        const eventTrash = typeof getEventsTrash === 'function' ? getEventsTrash() : [];
+
+        if (badgeAction) badgeAction.innerText = actionTrash.length;
+        if (badgeEvent) badgeEvent.innerText = eventTrash.length;
+
+        if (currentTrashTab === 'action') {
+            if (summaryEl) summaryEl.innerText = `삭제된 Action 업무 (${actionTrash.length}건 보관 중 · 최대 100건)`;
+            if (actionTrash.length === 0) {
+                listEl.innerHTML = `
+                <div class="py-12 text-center text-text-muted flex flex-col items-center justify-center">
+                    <span class="material-symbols-outlined text-[40px] opacity-30 mb-2">delete_outline</span>
+                    <p class="text-sm font-bold text-text-main">삭제된 Action 업무가 없습니다.</p>
+                    <p class="text-xs opacity-70 mt-1">삭제된 업무는 이곳에 안전하게 보관되며 언제든 복구할 수 있습니다.</p>
+                </div>`;
+                return;
+            }
+
+            listEl.innerHTML = actionTrash.map(a => {
+                const assignees = typeof parseAssignees === 'function' ? parseAssignees(a.assignee) : [a.assignee];
+                return `
+                <div class="bg-surface border border-border hover:border-primary/50 p-3.5 rounded-xl flex items-start justify-between gap-3 transition-colors shadow-sm">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                            <span class="text-[10px] font-black bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 px-2 py-0.5 rounded">삭제됨 (${a.deletedAt || '일시미상'})</span>
+                            ${a.dueDate ? `<span class="text-[10px] font-bold text-text-muted">마감: ${a.dueDate}</span>` : ''}
+                            <span class="text-[10px] font-bold text-text-muted">지시자: ${escHtml(a.assigner || '?')}</span>
+                        </div>
+                        <h4 class="text-xs md:text-sm font-bold text-text-main leading-snug break-words">${escHtml(a.title)}</h4>
+                        ${a.detail ? `<p class="text-[11px] text-text-muted mt-1 break-words">${escHtml(a.detail)}</p>` : ''}
+                        <div class="text-[10.5px] text-text-muted mt-1.5 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[13px]">groups</span>
+                            <span>담당: <b>${escHtml(assignees.join(', ') || '없음')}</b></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1.5 flex-shrink-0">
+                        <button onclick="restoreActionFromTrash('${a.id}')" class="text-xs font-bold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg shadow flex items-center gap-1 transition-colors" title="원래 목록으로 즉시 복구">
+                            <span class="material-symbols-outlined text-[14px]">restore</span> 복구
+                        </button>
+                        <button onclick="deletePermanentlyAction('${a.id}')" class="text-[11px] font-bold text-text-muted hover:text-red-500 p-1 flex items-center justify-center gap-0.5 transition-colors" title="휴지통에서 영구 삭제">
+                            <span class="material-symbols-outlined text-[13px]">delete_forever</span> 영구삭제
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            if (summaryEl) summaryEl.innerText = `삭제된 캘린더 일정 (${eventTrash.length}건 보관 중 · 최대 100건)`;
+            if (eventTrash.length === 0) {
+                listEl.innerHTML = `
+                <div class="py-12 text-center text-text-muted flex flex-col items-center justify-center">
+                    <span class="material-symbols-outlined text-[40px] opacity-30 mb-2">delete_outline</span>
+                    <p class="text-sm font-bold text-text-main">삭제된 캘린더 일정이 없습니다.</p>
+                    <p class="text-xs opacity-70 mt-1">삭제된 일정은 이곳에 안전하게 보관되며 언제든 복구할 수 있습니다.</p>
+                </div>`;
+                return;
+            }
+
+            listEl.innerHTML = eventTrash.map(ev => {
+                return `
+                <div class="bg-surface border border-border hover:border-primary/50 p-3.5 rounded-xl flex items-start justify-between gap-3 transition-colors shadow-sm">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                            <span class="text-[10px] font-black bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 px-2 py-0.5 rounded">삭제됨 (${ev.deletedAt || '일시미상'})</span>
+                            <span class="text-[10px] font-bold text-text-muted">${ev.date} · ${escHtml(ev.line)}</span>
+                        </div>
+                        <h4 class="text-xs md:text-sm font-bold text-text-main leading-snug break-words">${escHtml(ev.title)}</h4>
+                        <div class="text-[10.5px] text-text-muted mt-1.5 flex items-center gap-2">
+                            ${ev.worker ? `<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">person</span>${escHtml(ev.worker)}</span>` : ''}
+                            ${ev.registeredBy ? `<span class="opacity-60">(등록: ${escHtml(ev.registeredBy)})</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1.5 flex-shrink-0">
+                        <button onclick="restoreEventFromTrash('${ev.id}')" class="text-xs font-bold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg shadow flex items-center gap-1 transition-colors" title="캘린더로 즉시 복구">
+                            <span class="material-symbols-outlined text-[14px]">restore</span> 복구
+                        </button>
+                        <button onclick="deletePermanentlyEvent('${ev.id}')" class="text-[11px] font-bold text-text-muted hover:text-red-500 p-1 flex items-center justify-center gap-0.5 transition-colors" title="휴지통에서 영구 삭제">
+                            <span class="material-symbols-outlined text-[13px]">delete_forever</span> 영구삭제
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    function clearCurrentTrash() {
+        if (currentTrashTab === 'action') {
+            if (typeof clearActionsTrash === 'function') clearActionsTrash();
+        } else {
+            if (typeof clearEventsTrash === 'function') clearEventsTrash();
+        }
+    }
+
 // [Module: setup_manager.js]
 // ===== 🔧 셋업 관리 (설비 현황판, 일정과 무관한 별개 기능) =====
     let cachedEquipments = []; // [{ id, lineName, ipuBracket, dvr, chemFilter }]
@@ -3731,14 +4035,32 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
     renderNotifyControl();
     initLineSelect();
 
+    // 1. 캘린더 일정 0ms 로컬 스냅샷 복원
     const localSnap = typeof loadLocalEventsSnapshot === 'function' ? loadLocalEventsSnapshot() : null;
     if (localSnap && localSnap.length > 0) {
         cachedEvents = localSnap;
         renderCalendarUI();
     }
 
-    loadEventsFromSheet();
-    setInterval(loadEventsFromSheet, 60000);
+    // 2. Action List 0ms 로컬 스냅샷 복원
+    const localActionSnap = typeof loadLocalActionsSnapshot === 'function' ? loadLocalActionsSnapshot() : null;
+    if (localActionSnap && Array.isArray(localActionSnap)) {
+        actionItems = localActionSnap;
+        if (typeof updateActionBadge === 'function') updateActionBadge();
+        if (typeof renderTopActionWidget === 'function') renderTopActionWidget();
+    }
+
+    // 3. 백그라운드 병렬 동기화 함수
+    function syncAllDataParallel() {
+        if (typeof loadEventsFromSheet === 'function') loadEventsFromSheet();
+        if (typeof loadActions === 'function') loadActions();
+    }
+
+    // 초기 병렬 동기화 시작
+    syncAllDataParallel();
+
+    // 1분 주기 백그라운드 병렬 동기화
+    setInterval(syncAllDataParallel, 60000);
 
     // ==========================================
 
@@ -4166,6 +4488,49 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE8nBz6MN8CUK8y9dWK
                 <span>Action List 열기</span>
                 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
             </button>
+        </div>
+    </div>
+</div>
+<!-- 🗑️ 휴지통 (삭제 데이터 복원 및 관리 모달) -->
+<div id="trash-modal" class="fixed inset-0 bg-black/60 hidden z-[92] flex items-center justify-center p-2 md:p-4 backdrop-blur-sm">
+    <div class="bg-surface w-full h-full md:h-[85vh] md:max-w-3xl md:rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+        <!-- 헤더 -->
+        <div class="p-4 md:p-5 border-b border-border bg-surface flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shadow-inner flex-shrink-0">
+                    <span class="material-symbols-outlined text-[22px]">delete_sweep</span>
+                </div>
+                <div>
+                    <h3 class="text-base md:text-lg font-black text-text-main flex items-center gap-2">
+                        휴지통 및 데이터 복구
+                    </h3>
+                    <p id="trash-summary-text" class="text-[11px] text-text-muted font-bold mt-0.5">삭제된 데이터는 이곳에 보관되며 언제든 원클릭으로 복구할 수 있습니다.</p>
+                </div>
+            </div>
+            <button onclick="closeTrashModal()" class="text-text-muted hover:text-red-500 p-1.5"><span class="material-symbols-outlined text-[22px]">close</span></button>
+        </div>
+        <!-- 탭 선택 바 -->
+        <div class="flex items-center justify-between px-4 md:px-5 py-2.5 bg-background border-b border-border flex-shrink-0 gap-2 flex-wrap">
+            <div class="flex items-center gap-1.5">
+                <button type="button" class="trash-tab active" data-tab="action" onclick="switchTrashTab('action')">
+                    <span>✅ Action 업무</span>
+                    <span id="trash-badge-action" class="trash-tab-badge">0</span>
+                </button>
+                <button type="button" class="trash-tab" data-tab="event" onclick="switchTrashTab('event')">
+                    <span>📅 캘린더 일정</span>
+                    <span id="trash-badge-event" class="trash-tab-badge">0</span>
+                </button>
+            </div>
+            <button onclick="clearCurrentTrash()" class="text-[11.5px] font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1 transition-colors px-2 py-1" title="현재 탭의 휴지통 목록을 완전히 비웁니다">
+                <span class="material-symbols-outlined text-[15px]">delete_forever</span> 휴지통 비우기
+            </button>
+        </div>
+        <!-- 목록 영역 -->
+        <div id="trash-items-list" class="flex-1 overflow-y-auto p-4 md:p-5 space-y-2.5 bg-background/50"></div>
+        <!-- 푸터 -->
+        <div class="p-3.5 md:p-4 bg-surface border-t border-border flex justify-between items-center flex-shrink-0">
+            <span class="text-[11px] text-text-muted">최근 삭제 항목 최대 100건까지 안전 백업됩니다.</span>
+            <button onclick="closeTrashModal()" class="px-5 py-2 text-xs font-bold bg-primary text-white rounded-xl hover:opacity-90 transition-opacity">닫기</button>
         </div>
     </div>
 </div>
