@@ -542,6 +542,9 @@ html.dark .safety-days {
             <p id="action-subtitle" class="text-[11px] text-text-muted font-bold mt-0.5"></p>
         </div>
         <div class="flex items-center gap-1">
+            <button id="my-email-notify-toggle" onclick="toggleMyEmailNotification()" class="p-1.5 rounded-lg text-text-muted hover:bg-background transition-colors" title="내 이메일 알림 수신 (ON/OFF)">
+                <span class="material-symbols-outlined text-[20px]" id="my-email-notify-icon">mark_email_read</span>
+            </button>
             <button onclick="openTrashModal('action')" class="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-background" title="삭제된 업무 복구 (휴지통)">
                 <span class="material-symbols-outlined text-[20px]">delete_outline</span>
             </button>
@@ -978,6 +981,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
     const TEAM_CONFIG_DATE = 'config-team';
     let teamMembers = JSON.parse(localStorage.getItem('hitachi_team_members') || '[]');
     let teamMemberEmails = JSON.parse(localStorage.getItem('hitachi_team_member_emails') || '{}');
+    let teamMemberOptOut = JSON.parse(localStorage.getItem('hitachi_team_member_opt_out') || '{}');
     let teamConfigOnServer = false;
 
     // 서버에서 받은 이벤트 중 팀원/연휴 설정 행을 추출하고, 화면 렌더링 대상에서는 제외
@@ -992,14 +996,23 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
             teamMembers = String(last.worker || '').split(',').map(s => s.trim()).filter(Boolean);
             localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
 
-            // 이메일 매핑 정보 추출 (workTags 컬럼에 JSON으로 저장)
+            // 이메일 및 수신 여부 정보 추출 (workTags 컬럼에 JSON으로 저장)
             try {
                 if (last.workTags && typeof last.workTags === 'string' && last.workTags.startsWith('{')) {
-                    teamMemberEmails = JSON.parse(last.workTags);
+                    const parsed = JSON.parse(last.workTags);
+                    if (parsed.emails && typeof parsed.emails === 'object') {
+                        teamMemberEmails = parsed.emails;
+                        teamMemberOptOut = parsed.optOut || {};
+                    } else {
+                        teamMemberEmails = parsed;
+                        teamMemberOptOut = {};
+                    }
                 } else if (typeof last.workTags === 'object' && last.workTags !== null) {
                     teamMemberEmails = last.workTags;
+                    teamMemberOptOut = {};
                 }
                 localStorage.setItem('hitachi_team_member_emails', JSON.stringify(teamMemberEmails));
+                localStorage.setItem('hitachi_team_member_opt_out', JSON.stringify(teamMemberOptOut));
             } catch (e) {
                 console.warn('팀원 이메일 매핑 파싱 실패:', e);
             }
@@ -1019,11 +1032,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
     function saveTeamToServer() {
         localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
         localStorage.setItem('hitachi_team_member_emails', JSON.stringify(teamMemberEmails));
+        localStorage.setItem('hitachi_team_member_opt_out', JSON.stringify(teamMemberOptOut));
+        const configPayload = {
+            emails: teamMemberEmails,
+            optOut: teamMemberOptOut
+        };
         const payload = {
             id: TEAM_CONFIG_ID, date: TEAM_CONFIG_DATE, line: '',
             title: '⚙️ 팀원 목록 (시스템 설정 - 삭제 금지)',
             worker: teamMembers.join(', '),
-            workTags: JSON.stringify(teamMemberEmails),
+            workTags: JSON.stringify(configPayload),
             registeredBy: getCurrentUsername(), category: 'cat-normal', isVacation: false, alarmOn: false
         };
         if (teamConfigOnServer) {
@@ -1118,18 +1136,24 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         }
         listEl.innerHTML = teamMembers.map((m, idx) => {
             const email = teamMemberEmails[m] || '';
+            const isMuted = !!teamMemberOptOut[m];
+            
             const emailHtml = email
                 ? `<span onclick="editTeamMemberEmail('${escHtml(m)}')" class="text-[11px] text-text-muted bg-surface/80 hover:bg-primary/5 hover:border-primary px-2 py-0.5 rounded border border-border flex items-center gap-1 font-mono cursor-pointer transition-all" title="클릭하여 이메일 수정">
                     <span class="material-symbols-outlined text-[13px] text-primary">mail</span>${escHtml(email)}
-                   </span>`
+                   </span>
+                   <button type="button" onclick="toggleTeamMemberEmailOptOut('${escHtml(m)}')" class="px-2 py-0.5 rounded text-[11px] font-bold transition-all flex items-center gap-1 border ${isMuted ? 'bg-gray-100 text-gray-400 border-gray-300 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700 hover:text-gray-700' : 'bg-emerald-50 text-emerald-600 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800 hover:bg-emerald-100'}" title="클릭하여 메일 알림 수신 여부 변경 (ON/OFF)">
+                    <span class="material-symbols-outlined text-[13px]">${isMuted ? 'notifications_off' : 'notifications_active'}</span>
+                    ${isMuted ? '알림 OFF' : '알림 ON'}
+                   </button>`
                 : `<button type="button" onclick="editTeamMemberEmail('${escHtml(m)}')" class="text-[11px] font-bold text-primary/80 hover:text-primary hover:underline flex items-center gap-0.5">
                     <span class="material-symbols-outlined text-[13px]">add_circle</span>이메일 등록
                    </button>`;
 
             return `
             <div class="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2.5 hover:border-primary/40 transition-colors">
-                <div class="flex items-center gap-2.5 flex-wrap">
-                    <span class="text-sm font-bold text-text-main flex items-center gap-1.5">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-bold text-text-main flex items-center gap-1.5 mr-1">
                         <span class="material-symbols-outlined text-[18px] text-text-muted">person</span>${escHtml(m)}
                     </span>
                     ${emailHtml}
@@ -1144,6 +1168,26 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
                 </div>
             </div>`;
         }).join('');
+    }
+
+    function toggleTeamMemberEmailOptOut(name) {
+        const email = teamMemberEmails[name] || '';
+        if (!email) {
+            alert(`'${name}' 팀원의 이메일이 먼저 등록되어야 알림을 켜거나 끌 수 있습니다.`);
+            editTeamMemberEmail(name);
+            return;
+        }
+        if (teamMemberOptOut[name]) {
+            delete teamMemberOptOut[name];
+            showToast(`'${name}' 팀원의 이메일 알림이 활성화되었습니다 (수신 중).`, 'success');
+        } else {
+            teamMemberOptOut[name] = true;
+            showToast(`'${name}' 팀원의 이메일 알림이 해제되었습니다 (수신 거부).`, 'info');
+        }
+        renderTeamList();
+        saveTeamToServer();
+        if (typeof renderActionAssigneeBadges === 'function') renderActionAssigneeBadges();
+        if (typeof updateMyEmailToggleUI === 'function') updateMyEmailToggleUI();
     }
 
     function addTeamMember() {
@@ -2820,6 +2864,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         document.getElementById('action-backdrop').classList.remove('hidden');
         document.getElementById('action-drawer').classList.remove('translate-x-full');
         renderNotifyControl();
+        updateMyEmailToggleUI();
         renderActionList();
         loadActions();
     }
@@ -2832,6 +2877,39 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         actionTab = tab;
         document.querySelectorAll('.act-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         renderActionList();
+        updateMyEmailToggleUI();
+    }
+
+    function updateMyEmailToggleUI() {
+        const me = getCurrentUsername();
+        const btn = document.getElementById('my-email-notify-toggle');
+        const icon = document.getElementById('my-email-notify-icon');
+        if (!btn || !icon || !me) return;
+        const isMuted = typeof teamMemberOptOut !== 'undefined' && !!teamMemberOptOut[me];
+        const hasEmail = typeof teamMemberEmails !== 'undefined' && !!teamMemberEmails[me];
+        if (!hasEmail) {
+            btn.className = "p-1.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-primary hover:bg-background transition-colors";
+            btn.title = "내 이메일 주소 등록 필요 (팀원관리에서 등록)";
+            icon.innerText = "unsubscribe";
+            return;
+        }
+        if (isMuted) {
+            btn.className = "p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-emerald-500 hover:bg-background transition-colors";
+            btn.title = `내 메일 알림: OFF (수신 거부 상태 - 클릭하여 켜기)`;
+            icon.innerText = "notifications_off";
+        } else {
+            btn.className = "p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:text-gray-400 hover:bg-background transition-colors";
+            btn.title = `내 메일 알림: ON (수신 중 - 클릭하여 끄기)`;
+            icon.innerText = "mark_email_read";
+        }
+    }
+
+    function toggleMyEmailNotification() {
+        const me = getCurrentUsername();
+        if (!me) return alert('로그인 후 이용하실 수 있습니다.');
+        if (typeof toggleTeamMemberEmailOptOut === 'function') {
+            toggleTeamMemberEmailOptOut(me);
+        }
     }
 
     // ---------- 입력 폼 ----------
@@ -2906,11 +2984,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
             txt = '🔕 <b>알림 없음</b>: 이메일 전송 없이 스케줄러 내 Action List에만 등록됩니다.';
         }
 
-        // 담당자 중 이메일 미등록자 점검
+        // 담당자 중 이메일 미등록자 및 수신 거부자 점검
         if (opt !== 'none' && actionPickedAssignees.length > 0 && typeof teamMemberEmails !== 'undefined') {
             const missing = actionPickedAssignees.filter(name => !teamMemberEmails[name]);
+            const muted = actionPickedAssignees.filter(name => typeof teamMemberOptOut !== 'undefined' && teamMemberOptOut[name]);
             if (missing.length > 0) {
                 txt += `<br><span class="text-amber-500 dark:text-amber-400 font-bold">⚠️ 이메일 미등록 팀원(${missing.map(escHtml).join(', ')}): 메일 발송 제외</span>`;
+            }
+            if (muted.length > 0) {
+                txt += `<br><span class="text-gray-500 dark:text-gray-400 font-bold">🔕 알림 수신 OFF 팀원(${muted.map(escHtml).join(', ')}): 수신 거부 설정으로 발송 제외</span>`;
             }
         }
         guide.innerHTML = txt;
@@ -2938,7 +3020,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         wrap.innerHTML = cands.map((n, i) => {
             const on = actionPickedAssignees.includes(n);
             const hasEmail = typeof teamMemberEmails !== 'undefined' && teamMemberEmails[n];
-            const emailDot = hasEmail ? '· ✉️' : '';
+            const isMuted = typeof teamMemberOptOut !== 'undefined' && !!teamMemberOptOut[n];
+            const emailDot = isMuted ? ' · 🔕OFF' : (hasEmail ? ' · ✉️' : '');
             return `<button type="button" class="act-pick ${on ? 'on' : ''}" onclick="toggleAssigneePick(${i})">${escHtml(n)}${n === me ? ' (나)' : ''}${emailDot}</button>`;
         }).join('');
     }
@@ -2978,10 +3061,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
             const now = todayStrLocal();
             const emailOption = document.querySelector('input[name="action-email-option"]:checked')?.value || 'none';
             
-            // 선택된 담당자들의 이메일 주소 취합
+            // 선택된 담당자들의 이메일 주소 취합 (수신 거부 설정된 팀원은 발송 대상에서 제외)
             const assigneeEmails = {};
             actionPickedAssignees.forEach(name => {
-                if (typeof teamMemberEmails !== 'undefined' && teamMemberEmails[name]) {
+                const isMuted = typeof teamMemberOptOut !== 'undefined' && !!teamMemberOptOut[name];
+                if (!isMuted && typeof teamMemberEmails !== 'undefined' && teamMemberEmails[name]) {
                     assigneeEmails[name] = teamMemberEmails[name];
                 }
             });
