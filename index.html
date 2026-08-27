@@ -2557,6 +2557,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
     // ===== 💾 Action List 로컬 스냅샷 및 휴지통 (Zero Data Loss 안전망) =====
     const ACTIONS_SNAPSHOT_KEY = 'hitachi_actions_cache_snapshot';
     const ACTIONS_TRASH_KEY = 'hitachi_deleted_actions_trash';
+    const recentlyDeletedActionIds = new Set();
 
     function saveLocalActionsSnapshot() {
         try {
@@ -2608,7 +2609,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
                 { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'readActions' }) });
             const data = await res.json();
             if (Array.isArray(data)) {
-                actionItems = data.filter(a => a && a.id);
+                const trashIds = new Set(getActionsTrash().map(t => t.id));
+                actionItems = data.filter(a => a && a.id && !trashIds.has(a.id) && !recentlyDeletedActionIds.has(a.id));
                 actionBackendReady = true;
                 saveLocalActionsSnapshot();
             } else {
@@ -3095,6 +3097,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         if (!confirm(`'${it.title}' 항목을 삭제하시겠습니까?`)) return;
+        recentlyDeletedActionIds.add(id);
         saveDeletedActionToTrash(it);
         actionItems = actionItems.filter(a => a.id !== id);
         sendToSheet({ action: 'deleteAction', id });
@@ -3121,8 +3124,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxswCEnic0UydXZ8e6e3
         const target = trash.find(a => a.id === id);
         if (!target) return alert('복원할 업무를 찾을 수 없습니다.');
 
-        // 휴지통에서 제거
+        // 휴지통 및 삭제 대기 목록에서 제거
         trash = trash.filter(a => a.id !== id);
+        recentlyDeletedActionIds.delete(id);
         localStorage.setItem(ACTIONS_TRASH_KEY, JSON.stringify(trash));
 
         // 복원 시 deletedAt 제거
