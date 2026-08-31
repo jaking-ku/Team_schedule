@@ -678,7 +678,7 @@ html.dark .safety-days {
             <input type="hidden" id="modal-event-id">
             <div>
                 <label class="block text-xs font-bold text-text-muted mb-1">작업 이름</label>
-                <input type="text" id="modal-title" oninput="clearTagAutoNotice()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                <input type="text" id="modal-title" oninput="clearTagAutoNotice()" onblur="autoSuggestTagsIfEmpty()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
             </div>
             <!-- 🏷️ 작업유형 태그 (다중 선택) -->
             <div>
@@ -2184,7 +2184,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         closeModal(); 
 
         const isVacation = line === '🏖️ 휴가자';
-        const workTags = selectedTags.join(',');
+        // 💡 사용자가 태그를 수동 선택하지 않았다면, 제목 분석 알고리즘(v2.0)이 자동 판별하여 저장
+        let finalTags = selectedTags;
+        if (finalTags.length === 0 && !isVacation) {
+            finalTags = classifyTitleToTags(title);
+        }
+        const workTags = finalTags.join(',');
 
         if (id) {
             if (noteId) {
@@ -2507,6 +2512,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
     function autoSuggestTags() {
         const title = document.getElementById('modal-title').value;
         if (!title.trim()) return alert('먼저 작업 이름을 입력해주세요.');
+        selectedTags = classifyTitleToTags(title);
+        renderTagPicks();
+        document.getElementById('tag-auto-notice').classList.remove('hidden');
+    }
+
+    // 제목 입력을 마치고 다른 곳을 클릭했을 때, 태그가 비어있다면 자동 분석하여 칩을 미리 선택해 둠
+    function autoSuggestTagsIfEmpty() {
+        const title = document.getElementById('modal-title').value.trim();
+        if (!title || selectedTags.length > 0) return;
         selectedTags = classifyTitleToTags(title);
         renderTagPicks();
         document.getElementById('tag-auto-notice').classList.remove('hidden');
