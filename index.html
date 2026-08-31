@@ -2344,13 +2344,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
     // 제목(title)은 자유 텍스트로 그대로 두고, 통계 집계는 이 구조화된 태그로 처리한다.
     // 한 일정에 여러 작업(PM + 부품교체 + Cleaning 등)이 섞여도 태그를 여러 개 선택하면 된다.
     const TAG_META = {
-        PM:      { label: 'PM',        color: '#16a34a' },
-        SETUP:   { label: 'Setup',     color: '#9333ea' },
-        PARTS:   { label: '부품교체',   color: '#2563eb' },
-        CHECK:   { label: '점검',      color: '#0891b2' },
-        MOVE:    { label: '반입/반출', color: '#65a30d' },
-        ETC:     { label: '기타',      color: '#6b7280' },
-        BM:      { label: 'Trouble/BM', color: '#dc2626' }
+        PM:      { label: 'PM',          color: '#16a34a' },
+        SETUP:   { label: 'Setup',       color: '#9333ea' },
+        PARTS:   { label: '부품교체',     color: '#2563eb' },
+        CHECK:   { label: '점검',        color: '#0891b2' },
+        ALIGN:   { label: 'Align/Focus', color: '#0284c7' },
+        SOFT:    { label: 'Soft/FW',     color: '#ea580c' },
+        MOVE:    { label: '반입/반출',   color: '#65a30d' },
+        ETC:     { label: '기타',        color: '#6b7280' },
+        BM:      { label: 'Trouble/BM',  color: '#dc2626' }
     };
     // 부모 태그를 체크하면 관련 세부 분류 칩이 추가로 펼쳐진다 (다중 선택)
     const SUB_TAG_GROUPS = {
@@ -2383,7 +2385,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
             }
         }
     };
-    const MAIN_TAG_ORDER = ['PM', 'SETUP', 'PARTS', 'CHECK', 'MOVE', 'ETC', 'BM'];
+    const MAIN_TAG_ORDER = ['PM', 'SETUP', 'PARTS', 'CHECK', 'ALIGN', 'SOFT', 'MOVE', 'ETC', 'BM'];
     let selectedTags = [];   // 현재 모달에서 선택 중인 태그 배열 (메인 + 세부)
 
     function parseTagString(s) { return String(s || '').split(',').map(t => t.trim()).filter(Boolean); }
@@ -2406,8 +2408,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
                 const on = selectedTags.includes(code);
                 return `<button type="button" class="tag-pick bm-pick ${on ? 'on' : ''}" onclick="toggleTag('${code}')">${label}</button>`;
             }).join('');
-            return `<div class="mt-2 pt-2 border-t border-dashed border-border">
-                <div class="text-[10.5px] font-bold text-text-muted mb-1.5">${g.title} (다중 선택)</div>
+            return `<div class="pt-2 border-t border-border-card space-y-1">
+                <div class="text-[11px] font-bold text-text-muted">${g.title}</div>
                 <div class="flex flex-wrap gap-1.5">${chips}</div>
             </div>`;
         }).join('');
@@ -2416,7 +2418,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
     function toggleTag(code) {
         if (selectedTags.includes(code)) {
             selectedTags = selectedTags.filter(t => t !== code);
-            // 부모 태그를 해제하면 그에 딸린 세부 태그도 함께 제거
+            // 부모 태그가 꺼지면 하위 세부 태그도 같이 해제
             if (SUB_TAG_GROUPS[code]) {
                 const subCodes = Object.keys(SUB_TAG_GROUPS[code].subs);
                 selectedTags = selectedTags.filter(t => !subCodes.includes(t));
@@ -2429,18 +2431,35 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
 
     function clearTagAutoNotice() { document.getElementById('tag-auto-notice').classList.add('hidden'); }
 
-    // 제목 텍스트를 키워드로 분석해 태그를 추천 (완전 자동은 아니고 확인 후 저장하는 보조 기능)
+    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.0)
     function classifyTitleToTags(title) {
-        const t = String(title || '');
+        const t = String(title || '').trim();
         const tags = [];
-        // ⚠️ \b는 밑줄(_)을 단어문자로 취급해 "DI46_MDI4211_PM" 같은 표기를 놓치므로 직접 경계를 검사한다
-        if (/(^|[^A-Za-z])PM([^A-Za-z]|$)/i.test(t)) tags.push('PM');
-        if (/(셋업|셋-업|set[- ]?up|턴온|turn[- ]?on|신규\s*설비|인증|헬스\s*체크|설치|업그레이드|upgrade)/i.test(t)) tags.push('SETUP');
-        if (/(점검|teaching|loading position|interlock|matching|cleaning|focus|마킹)/i.test(t)) tags.push('CHECK');
-        if (/(반입|반출)/.test(t)) tags.push('MOVE');
 
-        // 부품교체 + 세부(어떤 부품인지)
-        if (/교체/.test(t)) {
+        // 1. PM
+        if (/(^|[^A-Za-z])PM([^A-Za-z]|$)/i.test(t)) tags.push('PM');
+
+        // 2. SETUP (설치, 셋업, 턴온/오프, 업그레이드, 개조, Cabling, 8계통 준비, IPU Bracket, BeamSlit 등)
+        if (/(셋업|셋-업|set[- ]?up|턴온|turn[- ]?on|turn[- ]?off|신규\s*설비|인증|헬스\s*체크|설치|upgrade|Cabling|케이블|8계통|제진대|배선|장착|부착|탈착|철거|직납|IPU\s*Bracket|BeamSlit)/i.test(t)) {
+            tags.push('SETUP');
+        }
+
+        // 3. MOVE (반입/반출, 이설, 이동)
+        if (/(반입|반출|이설|이동)/.test(t)) tags.push('MOVE');
+
+        // 4. SOFT (Software, Firmware, Soft 작업, 버전업)
+        if (/(firmware|펌웨어|software|소프트웨어|soft\s*작업|버전업|version\s*up)/i.test(t)) {
+            tags.push('SOFT');
+        }
+
+        // 5. ALIGN (Align 점검, Focus 점검을 통합한 Align/Focus)
+        if (/(align|focus|포커스|얼라인|정렬)/i.test(t)) {
+            tags.push('ALIGN');
+        }
+
+        // 6. PARTS (부품교체, New Hand, 신품, 기납품대책)
+        const isParts = /(교체|New\s*Hand|뉴\s*핸드|핸드|기납품대책|대책품)/i.test(t);
+        if (isParts) {
             tags.push('PARTS');
             if (/(scale\s*head|스케일\s*헤드)/i.test(t)) tags.push('PARTS_SCALEHEAD');
             if (/(revolver|리볼버)/i.test(t)) tags.push('PARTS_REVOLVER');
@@ -2449,22 +2468,38 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgw2M901YbMfj2m4Z7T
             if (/(cylinder|실린더)/i.test(t)) tags.push('PARTS_CYLINDER');
             if (/(board|보드)/i.test(t)) tags.push('PARTS_BOARD');
         }
+        // 특정 부품명 단독 언급 시
+        if (/(scale\s*head|스케일\s*헤드)/i.test(t) && !tags.includes('PARTS')) {
+            tags.push('PARTS', 'PARTS_SCALEHEAD');
+        }
+        if (/(revolver|리볼버)/i.test(t) && !tags.includes('PARTS')) {
+            tags.push('PARTS', 'PARTS_REVOLVER');
+        }
+        if (/(cylinder|실린더)/i.test(t) && !tags.includes('PARTS')) {
+            tags.push('PARTS', 'PARTS_CYLINDER');
+        }
 
-        // Trouble/BM + 세부(증상 부위)
-        const isTrouble = /(error|fail|고장|불량|이슈|trouble|긴급)/i.test(t);
+        // 7. BM (Trouble/BM)
+        const isTrouble = /(error|fail|고장|불량|이슈|trouble|긴급|down|다운|원복|리커버리|빼일)/i.test(t);
         if (isTrouble) {
             tags.push('BM');
-            if (/(align|정렬|focus)/i.test(t)) tags.push('BM_ALIGN');
-            if (/(^|[^A-Za-z])Stage([^A-Za-z]|$)/i.test(t)) tags.push('BM_STAGE');
-            if (/(robot|로봇)/i.test(t)) tags.push('BM_ROBOT');
+            if (/(align|정렬|focus|포커스)/i.test(t)) tags.push('BM_ALIGN');
+            if (/(^|[^A-Za-z])Stage([^A-Za-z]|$)|스테이지/i.test(t)) tags.push('BM_STAGE');
+            if (/(robot|로봇|arm|뉴핸드|new\s*hand)/i.test(t)) tags.push('BM_ROBOT');
             if (/(port|포트)/i.test(t)) tags.push('BM_PORT');
             if (/(^|[^A-Za-z])TDI([^A-Za-z]|$)/i.test(t)) tags.push('BM_TDI');
             if (/(motor|모터)/i.test(t)) tags.push('BM_MOTOR');
-            if (/(firmware|software|에러|error|코드)/i.test(t)) tags.push('BM_SW');
+            if (/(firmware|software|에러|error|코드|soft)/i.test(t)) tags.push('BM_SW');
             if (/(revolver|리볼버)/i.test(t)) tags.push('BM_REVOLVER');
             if (/(laser|레이저)/i.test(t)) tags.push('BM_LASER');
-            if (!tags.some(x => x.indexOf('BM_') === 0)) tags.push('BM_ETC');
+            if (!tags.some(x => x.startsWith('BM_'))) tags.push('BM_ETC');
         }
+
+        // 8. CHECK (일반 점검, 티칭, 매칭, 클리닝, 포커스, 체크, 조사, 조정, 테스트, 확인 등)
+        if (/(점검|티칭|teaching|매칭|matching|cleaning|클리닝|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압)/i.test(t)) {
+            tags.push('CHECK');
+        }
+
         if (tags.length === 0) tags.push('ETC');
         return [...new Set(tags)];
     }
