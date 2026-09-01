@@ -2184,19 +2184,30 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         closeModal(); 
 
         const isVacation = line === '🏖️ 휴가자';
-        // 💡 사용자가 태그를 수동 선택하지 않았다면, 제목 분석 알고리즘(v2.0)이 자동 판별하여 저장
+        // 💡 사용자가 태그를 수동 선택하지 않았다면, 제목 분석 알고리즘(v2.1)이 자동 판별하여 저장
         let finalTags = selectedTags;
         if (finalTags.length === 0 && !isVacation) {
             finalTags = classifyTitleToTags(title);
         }
         const workTags = finalTags.join(',');
 
+        // 💡 작업유형 중 PM은 cat-pm(Green), Setup은 cat-setup(Purple) 자동 연동
+        let finalCategory = category;
+        if (finalCategory !== 'cat-urgent' && !isVacation) {
+            if (finalTags.includes('PM')) {
+                finalCategory = 'cat-pm';
+            } else if (finalTags.includes('SETUP')) {
+                finalCategory = 'cat-setup';
+            }
+        }
+        const alarmOn = finalCategory === 'cat-setup' && document.getElementById('modal-alarm-checkbox').checked;
+
         if (id) {
             if (noteId) {
                 // 비고 일정: 기간 개념이 없으므로 해당 건만 수정
                 const evIndex = cachedEvents.findIndex(e => e.id === id);
-                if (evIndex > -1) cachedEvents[evIndex] = { ...cachedEvents[evIndex], date: noteId, line, title, worker, category, isVacation, alarmOn, workTags };
-                sendToSheet({ action: 'update', id, date: noteId, line, title, worker, registeredBy, category, isVacation, alarmOn, workTags });
+                if (evIndex > -1) cachedEvents[evIndex] = { ...cachedEvents[evIndex], date: noteId, line, title, worker, category: finalCategory, isVacation, alarmOn, workTags };
+                sendToSheet({ action: 'update', id, date: noteId, line, title, worker, registeredBy, category: finalCategory, isVacation, alarmOn, workTags });
             } else {
                 // 📌 그룹 단위 수정: 기간이 늘면 날짜 추가, 줄면 삭제, 나머지는 내용 갱신
                 const startStr = document.getElementById('modal-start-date').value;
@@ -2223,10 +2234,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
                 desired.forEach(dStr => {
                     const ex = byDate[dStr];
                     if (ex) {
-                        Object.assign(ex, { date: dStr, line, title, worker, category, isVacation, alarmOn, workTags });
-                        sendToSheet({ action: 'update', id: ex.id, date: dStr, line, title, worker, registeredBy, category, isVacation, alarmOn, workTags });
+                        Object.assign(ex, { date: dStr, line, title, worker, category: finalCategory, isVacation, alarmOn, workTags });
+                        sendToSheet({ action: 'update', id: ex.id, date: dStr, line, title, worker, registeredBy, category: finalCategory, isVacation, alarmOn, workTags });
                     } else {
-                        const newEv = { id: `${gKey}__${dStr}`, date: dStr, line, title, worker, registeredBy, category, isVacation, alarmOn, workTags };
+                        const newEv = { id: `${gKey}__${dStr}`, date: dStr, line, title, worker, registeredBy, category: finalCategory, isVacation, alarmOn, workTags };
                         cachedEvents.push(newEv);
                         sendToSheet({ action: 'add', ...newEv });
                     }
@@ -2235,7 +2246,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         } else {
             if (noteId) {
                 const newId = 'EVT_' + Date.now();
-                const newEv = { id: newId, date: noteId, line, title, worker, registeredBy, category, isVacation, alarmOn, workTags };
+                const newEv = { id: newId, date: noteId, line, title, worker, registeredBy, category: finalCategory, isVacation, alarmOn, workTags };
                 cachedEvents.push(newEv);
                 sendToSheet({ action: 'add', ...newEv });
             } else {
@@ -2246,7 +2257,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
                 // 하나의 그룹키를 공유하도록 id 생성 → 이후 수정 시 기간 변경이 정상 반영됨
                 const gKey = 'EVT_' + Date.now() + Math.floor(Math.random() * 1000);
                 dateRangeList(startStr, endStr).forEach(dStr => {
-                    const newEv = { id: `${gKey}__${dStr}`, date: dStr, line, title, worker, registeredBy, category, isVacation, alarmOn, workTags };
+                    const newEv = { id: `${gKey}__${dStr}`, date: dStr, line, title, worker, registeredBy, category: finalCategory, isVacation, alarmOn, workTags };
                     cachedEvents.push(newEv);
                     sendToSheet({ action: 'add', ...newEv });
                 });
@@ -2420,6 +2431,22 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         }).join('');
     }
 
+    function syncCategoryWithTags(tags) {
+        const catSelect = document.getElementById('modal-category');
+        if (!catSelect) return;
+        // 사용자가 명시적으로 긴급(cat-urgent)을 선택한 경우가 아니면 PM / Setup 연동
+        if (catSelect.value !== 'cat-urgent') {
+            if (tags.includes('PM')) {
+                catSelect.value = 'cat-pm';
+            } else if (tags.includes('SETUP')) {
+                catSelect.value = 'cat-setup';
+            } else if (catSelect.value === 'cat-pm' || catSelect.value === 'cat-setup') {
+                catSelect.value = 'cat-normal';
+            }
+        }
+        toggleAlarmWrapper();
+    }
+
     function toggleTag(code) {
         if (selectedTags.includes(code)) {
             selectedTags = selectedTags.filter(t => t !== code);
@@ -2432,11 +2459,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
             selectedTags.push(code);
         }
         renderTagPicks();
+        syncCategoryWithTags(selectedTags);
     }
 
     function clearTagAutoNotice() { document.getElementById('tag-auto-notice').classList.add('hidden'); }
 
-    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.0)
+    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.1)
     function classifyTitleToTags(title) {
         const t = String(title || '').trim();
         const tags = [];
@@ -2462,19 +2490,21 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
             tags.push('ALIGN');
         }
 
-        // 6. PARTS (부품교체, New Hand, 신품, 기납품대책)
+        // 6. PARTS (부품교체, New Hand, 신품, 기납품대책, 축 교체: N, Y1, Y2, Z1, Z2, YL, YR, ZL, ZR)
         const isParts = /(교체|New\s*Hand|뉴\s*핸드|핸드|기납품대책|대책품)/i.test(t);
         if (isParts) {
             tags.push('PARTS');
-            if (/(scale\s*head|스케일\s*헤드)/i.test(t)) tags.push('PARTS_SCALEHEAD');
+            if (/(scale\s*head|스케일\s*헤드|스케일|5\s*축|(?:^|[^A-Za-z0-9])(?:N|Y1|Y2|Z1|Z2|YL|YR|ZL|ZR)(?:축)?(?=[^A-Za-z0-9]|$))/i.test(t)) {
+                tags.push('PARTS_SCALEHEAD');
+            }
             if (/(revolver|리볼버)/i.test(t)) tags.push('PARTS_REVOLVER');
             if (/(^|[^A-Za-z])TDI([^A-Za-z]|$)/i.test(t)) tags.push('PARTS_TDI');
             if (/(laser|레이저)/i.test(t)) tags.push('PARTS_LASER');
             if (/(cylinder|실린더)/i.test(t)) tags.push('PARTS_CYLINDER');
             if (/(board|보드)/i.test(t)) tags.push('PARTS_BOARD');
         }
-        // 특정 부품명 단독 언급 시
-        if (/(scale\s*head|스케일\s*헤드)/i.test(t) && !tags.includes('PARTS')) {
+        // 특정 부품명/축 단독 언급 시
+        if (/(scale\s*head|스케일\s*헤드|5\s*축\s*스케일|(?:^|[^A-Za-z0-9])(?:N|Y1|Y2|Z1|Z2|YL|YR|ZL|ZR)축\s*(?:스케일|scale|헤드))/i.test(t) && !tags.includes('PARTS')) {
             tags.push('PARTS', 'PARTS_SCALEHEAD');
         }
         if (/(revolver|리볼버)/i.test(t) && !tags.includes('PARTS')) {
@@ -2514,6 +2544,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         if (!title.trim()) return alert('먼저 작업 이름을 입력해주세요.');
         selectedTags = classifyTitleToTags(title);
         renderTagPicks();
+        syncCategoryWithTags(selectedTags);
         document.getElementById('tag-auto-notice').classList.remove('hidden');
     }
 
@@ -2523,6 +2554,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvfTTN1x6nmVAIxKUP9
         if (!title || selectedTags.length > 0) return;
         selectedTags = classifyTitleToTags(title);
         renderTagPicks();
+        syncCategoryWithTags(selectedTags);
         document.getElementById('tag-auto-notice').classList.remove('hidden');
     }
     // ===========================
