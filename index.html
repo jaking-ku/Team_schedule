@@ -2420,8 +2420,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     const SUB_TAG_GROUPS = {
         BM: {
             title: '🔧 Trouble/BM 증상 세부 분류',
-            colors: ['#dc2626', '#ea580c', '#d97706', '#65a30d', '#0891b2', '#7c3aed', '#db2777', '#0284c7', '#16a34a', '#94a3b8'],
+            colors: ['#dc2626', '#ea580c', '#d97706', '#65a30d', '#0891b2', '#7c3aed', '#db2777', '#0284c7', '#ef4444', '#16a34a', '#94a3b8'],
             subs: {
+                BM_FALSE:    'False',
                 BM_ALIGN:    'Align/Focus',
                 BM_STAGE:    'Stage',
                 BM_ROBOT:    'Robot',
@@ -2432,6 +2433,21 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                 BM_REVOLVER: 'Revolver',
                 BM_LASER:    'Laser',
                 BM_ETC:      '기타'
+            }
+        },
+        CHECK: {
+            title: '🔍 점검 세부 분류',
+            colors: ['#0891b2', '#0284c7', '#2563eb', '#7c3aed', '#059669', '#d97706', '#ea580c', '#4b5563', '#64748b'],
+            subs: {
+                CHECK_ROBOT:    '로봇 점검',
+                CHECK_SENSOR:   'Sensor 점검',
+                CHECK_TDI:      'TDI 점검',
+                CHECK_LP:       'Loading Position 점검',
+                CHECK_STAGE:    'Stage 점검',
+                CHECK_ALIGN:    'Align/Focus 점검',
+                CHECK_CLEANING: 'Cleaning',
+                CHECK_TEACHING: 'Teaching',
+                CHECK_ETC:      '기타 점검'
             }
         },
         PARTS: {
@@ -2447,7 +2463,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             }
         }
     };
-    const MAIN_TAG_ORDER = ['PM', 'SETUP', 'PARTS', 'CHECK', 'ALIGN', 'SOFT', 'MOVE', 'ETC', 'BM'];
+    const MAIN_TAG_ORDER = ['PM', 'SETUP', 'PARTS', 'CHECK', 'SOFT', 'MOVE', 'ETC', 'BM'];
     let selectedTags = [];   // 현재 모달에서 선택 중인 태그 배열 (메인 + 세부)
 
     function parseTagString(s) { return String(s || '').split(',').map(t => t.trim()).filter(Boolean); }
@@ -2510,7 +2526,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function clearTagAutoNotice() { document.getElementById('tag-auto-notice').classList.add('hidden'); }
 
-    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.1)
+    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.2)
     function classifyTitleToTags(title) {
         const t = String(title || '').trim();
         const tags = [];
@@ -2531,12 +2547,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             tags.push('SOFT');
         }
 
-        // 5. ALIGN (Align 점검, Focus 점검을 통합한 Align/Focus)
-        if (/(align|focus|포커스|얼라인|정렬)/i.test(t)) {
-            tags.push('ALIGN');
-        }
-
-        // 6. PARTS (부품교체, New Hand, 신품, 기납품대책, 축 교체: N, Y1, Y2, Z1, Z2, YL, YR, ZL, ZR)
+        // 5. PARTS (부품교체, New Hand, 신품, 기납품대책, 축 교체: N, Y1, Y2, Z1, Z2, YL, YR, ZL, ZR)
         const isParts = /(교체|New\s*Hand|뉴\s*핸드|핸드|기납품대책|대책품)/i.test(t);
         if (isParts) {
             tags.push('PARTS');
@@ -2560,10 +2571,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             tags.push('PARTS', 'PARTS_CYLINDER');
         }
 
-        // 7. BM (Trouble/BM)
-        const isTrouble = /(error|fail|고장|불량|이슈|trouble|긴급|down|다운|원복|리커버리|빼일)/i.test(t);
+        // 6. BM (Trouble/BM, False, 에러, 고장, 불량 등)
+        const isTrouble = /(error|fail|고장|불량|이슈|trouble|긴급|down|다운|원복|리커버리|빼일|false|폴스|펄스)/i.test(t);
         if (isTrouble) {
             tags.push('BM');
+            if (/(false|폴스|펄스)/i.test(t)) tags.push('BM_FALSE');
             if (/(align|정렬|focus|포커스)/i.test(t)) tags.push('BM_ALIGN');
             if (/(^|[^A-Za-z])Stage([^A-Za-z]|$)|스테이지/i.test(t)) tags.push('BM_STAGE');
             if (/(robot|로봇|arm|뉴핸드|new\s*hand)/i.test(t)) tags.push('BM_ROBOT');
@@ -2576,9 +2588,19 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             if (!tags.some(x => x.startsWith('BM_'))) tags.push('BM_ETC');
         }
 
-        // 8. CHECK (일반 점검, 티칭, 매칭, 클리닝, 포커스, 체크, 조사, 조정, 테스트, 확인 등)
-        if (/(점검|티칭|teaching|매칭|matching|cleaning|클리닝|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압)/i.test(t)) {
+        // 7. CHECK (점검 및 세부 분류)
+        const isCheck = /(점검|티칭|teaching|매칭|matching|cleaning|클리닝|세정|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압|포지션|position|align|focus|얼라인|포커스|정렬|sensor|센서)/i.test(t);
+        if (isCheck && !tags.includes('PM')) {
             tags.push('CHECK');
+            if (/(robot|로봇|arm|뉴핸드|new\s*hand)/i.test(t)) tags.push('CHECK_ROBOT');
+            if (/(sensor|센서|감지기)/i.test(t)) tags.push('CHECK_SENSOR');
+            if (/(^|[^A-Za-z])TDI([^A-Za-z]|$)/i.test(t)) tags.push('CHECK_TDI');
+            if (/(loading\s*position|로딩\s*포지션|(?:^|[^A-Za-z])LP(?:[^A-Za-z]|$)|포지션|position|load)/i.test(t)) tags.push('CHECK_LP');
+            if (/(^|[^A-Za-z])Stage([^A-Za-z]|$)|스테이지/i.test(t)) tags.push('CHECK_STAGE');
+            if (/(align|focus|포커스|얼라인|정렬)/i.test(t) && !tags.includes('BM_ALIGN')) tags.push('CHECK_ALIGN');
+            if (/(cleaning|클리닝|세정)/i.test(t)) tags.push('CHECK_CLEANING');
+            if (/(teaching|티칭)/i.test(t)) tags.push('CHECK_TEACHING');
+            if (!tags.some(x => x.startsWith('CHECK_'))) tags.push('CHECK_ETC');
         }
 
         if (tags.length === 0) tags.push('ETC');
@@ -3851,7 +3873,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const range = dashDateRange();
 
         const mainCount = {};
-        const subCount = { BM: {}, PARTS: {} };   // 부모별 세부 집계
+        const subCount = { BM: {}, PARTS: {}, CHECK: {} };   // 부모별 세부 집계
         let untagged = 0;
 
         rows.forEach(e => {
@@ -3885,8 +3907,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                     : `<div class="relative h-64"><canvas id="chart-tags"></canvas></div>`}
                 ${untagged > 0 ? `<div class="text-[11px] text-text-muted mt-2">※ 태그 미지정 ${untagged}건은 집계에서 제외됨</div>` : ''}
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 ${subCardHtml('BM', 'chart-bm')}
+                ${subCardHtml('CHECK', 'chart-check')}
                 ${subCardHtml('PARTS', 'chart-parts')}
             </div>`;
 
@@ -3898,11 +3921,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             });
         }
 
-        ['BM', 'PARTS'].forEach(parentCode => {
+        ['BM', 'CHECK', 'PARTS'].forEach(parentCode => {
             const g = SUB_TAG_GROUPS[parentCode];
             const labels = Object.keys(g.subs).filter(c => subCount[parentCode][c]);
             if (labels.length === 0) return;
-            createChart(parentCode.toLowerCase(), parentCode === 'BM' ? 'chart-bm' : 'chart-parts', {
+            createChart(parentCode.toLowerCase(), `chart-${parentCode.toLowerCase()}`, {
                 type: 'doughnut',
                 data: { labels: labels.map(c => g.subs[c]), datasets: [{ data: labels.map(c => subCount[parentCode][c]), backgroundColor: g.colors, borderWidth: 0 }] },
                 options: baseChartOpts({ legend: true })
