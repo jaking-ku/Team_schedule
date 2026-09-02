@@ -2593,7 +2593,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         }
 
         // 7. CHECK (점검 및 세부 분류)
-        const isCheck = /(점검|티칭|teaching|매칭|matching|cleaning|클리닝|세정|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압|포지션|position|align|focus|얼라인|포커스|정렬|sensor|센서|MSPF|laser|레이저|TDK|port|포트|로봇|robot|arm)/i.test(t);
+        const isCheck = /(점검|티칭|teaching|매칭|matching|cleaning|클리닝|세정|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압|포지션|position|align|focus|얼라인|포커스|정렬|sensor|센서|MSPF|TDK|port|포트)/i.test(t)
+            || (/(laser|레이저)/i.test(t) && !tags.includes('PARTS') && !tags.includes('MOVE') && !tags.includes('BM'));
         if (isCheck && !tags.includes('PM')) {
             tags.push('CHECK');
             if (/(robot|로봇|arm|뉴핸드|new\s*hand|TDK|port|포트|MES|엠이エス|반송)/i.test(t)) tags.push('CHECK_MES');
