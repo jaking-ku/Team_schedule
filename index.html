@@ -2437,17 +2437,21 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         },
         CHECK: {
             title: '🔍 점검 세부 분류',
-            colors: ['#0891b2', '#0284c7', '#2563eb', '#7c3aed', '#059669', '#d97706', '#ea580c', '#4b5563', '#64748b'],
+            colors: ['#0891b2', '#0284c7', '#2563eb', '#7c3aed', '#059669', '#d97706', '#ea580c', '#db2777', '#84cc16', '#4b5563', '#64748b', '#94a3b8', '#0d9488'],
             subs: {
-                CHECK_ROBOT:    '로봇 점검',
-                CHECK_SENSOR:   'Sensor 점검',
-                CHECK_TDI:      'TDI 점검',
-                CHECK_LP:       'Loading Position 점검',
-                CHECK_STAGE:    'Stage 점검',
-                CHECK_ALIGN:    'Align/Focus 점검',
-                CHECK_CLEANING: 'Cleaning',
-                CHECK_TEACHING: 'Teaching',
-                CHECK_ETC:      '기타 점검'
+                CHECK_MES:       'MES 점검',
+                CHECK_SENSOR:    'Sensor 점검',
+                CHECK_TDI:       'TDI 점검',
+                CHECK_LP:        'Loading Position 점검',
+                CHECK_STAGE:     'Stage 점검',
+                CHECK_ALIGN:     'Align/Focus 점검',
+                CHECK_MSPF:      'MSPF 점검',
+                CHECK_LASER:     'Laser 점검',
+                CHECK_MATCHING:  'Data Matching',
+                CHECK_PEAK:      'Peak 점검',
+                CHECK_CLEANING:  'Cleaning',
+                CHECK_TEACHING:  'Teaching',
+                CHECK_ETC:       '기타 점검'
             }
         },
         PARTS: {
@@ -2526,7 +2530,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function clearTagAutoNotice() { document.getElementById('tag-auto-notice').classList.add('hidden'); }
 
-    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.2)
+    // 제목 텍스트를 키워드로 분석해 태그를 추천하는 고도화 분류 엔진 (v2.3)
     function classifyTitleToTags(title) {
         const t = String(title || '').trim();
         const tags = [];
@@ -2589,15 +2593,19 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         }
 
         // 7. CHECK (점검 및 세부 분류)
-        const isCheck = /(점검|티칭|teaching|매칭|matching|cleaning|클리닝|세정|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압|포지션|position|align|focus|얼라인|포커스|정렬|sensor|센서)/i.test(t);
+        const isCheck = /(점검|티칭|teaching|매칭|matching|cleaning|클리닝|세정|check|체크|조사|조정|Optimizing|optimizing|test|테스트|검증|측정|마킹|원점|PIN확인|확인|Peak|공압|차압|포지션|position|align|focus|얼라인|포커스|정렬|sensor|센서|MSPF|laser|레이저|TDK|port|포트|로봇|robot|arm)/i.test(t);
         if (isCheck && !tags.includes('PM')) {
             tags.push('CHECK');
-            if (/(robot|로봇|arm|뉴핸드|new\s*hand)/i.test(t)) tags.push('CHECK_ROBOT');
+            if (/(robot|로봇|arm|뉴핸드|new\s*hand|TDK|port|포트|MES|엠이エス|반송)/i.test(t)) tags.push('CHECK_MES');
             if (/(sensor|센서|감지기)/i.test(t)) tags.push('CHECK_SENSOR');
             if (/(^|[^A-Za-z])TDI([^A-Za-z]|$)/i.test(t)) tags.push('CHECK_TDI');
             if (/(loading\s*position|로딩\s*포지션|(?:^|[^A-Za-z])LP(?:[^A-Za-z]|$)|포지션|position|load)/i.test(t)) tags.push('CHECK_LP');
             if (/(^|[^A-Za-z])Stage([^A-Za-z]|$)|스테이지/i.test(t)) tags.push('CHECK_STAGE');
-            if (/(align|focus|포커스|얼라인|정렬)/i.test(t) && !tags.includes('BM_ALIGN')) tags.push('CHECK_ALIGN');
+            if (/(align|focus|포커스|얼라인|정렬|align\s*fail)/i.test(t) && !tags.includes('BM_ALIGN')) tags.push('CHECK_ALIGN');
+            if (/(MSPF|엠에스피에프)/i.test(t)) tags.push('CHECK_MSPF');
+            if (/(laser|레이저)/i.test(t) && !tags.includes('PARTS_LASER') && !tags.includes('BM_LASER')) tags.push('CHECK_LASER');
+            if (/(matching|매칭|551화|일치)/i.test(t)) tags.push('CHECK_MATCHING');
+            if (/(Peak|피크|광량)/i.test(t)) tags.push('CHECK_PEAK');
             if (/(cleaning|클리닝|세정)/i.test(t)) tags.push('CHECK_CLEANING');
             if (/(teaching|티칭)/i.test(t)) tags.push('CHECK_TEACHING');
             if (!tags.some(x => x.startsWith('CHECK_'))) tags.push('CHECK_ETC');
