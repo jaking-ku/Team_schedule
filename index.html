@@ -2177,7 +2177,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzt8UBk8sResQcMb-mM4
         const registeredBy = document.getElementById('modal-registered-by').value.trim();
         const line = document.getElementById('modal-line').value;
         const category = document.getElementById('modal-category').value;
-        const alarmOn = category === 'cat-setup' && document.getElementById('modal-alarm-checkbox').checked;
         const noteId = document.getElementById('modal-note-id').value;
         
         if (!title) return alert("제목을 입력하세요.");
@@ -2200,6 +2199,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzt8UBk8sResQcMb-mM4
                 finalCategory = 'cat-setup';
             }
         }
+        const alarmOn = finalCategory === 'cat-setup' && document.getElementById('modal-alarm-checkbox').checked;
 
         if (id) {
             if (noteId) {
