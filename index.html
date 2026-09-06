@@ -1921,6 +1921,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     // ☁️ 데이터 로딩 및 동기화 (서버에서 새로 받아올 때만 호출)
+    let eventReadSeq = 0;
+
     async function loadEventsFromSheet() {
         // 저장 요청이나 미전송 큐가 남아 있으면 서버에서 덮어쓰지 않는다 (Silent Rollback 완벽 방지)
         const pendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
@@ -1931,12 +1933,22 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             return;
         }
 
+        const thisSeq = ++eventReadSeq;
+
         setSyncBadge('<span class="material-symbols-outlined text-[13px] animate-spin">sync</span> 동기화 중...');
 
         try {
             const url = SCRIPT_URL + "?t=" + new Date().getTime();
             const res = await fetch(url, { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'read' }) });
-            cachedEvents = extractTeamConfig(await res.json());
+            const rawData = await res.json();
+
+            // 🛡️ 응답 도착 시점에 사용자가 새 수정을 진행 중이거나(pendingWrites > 0) 새 시퀀스가 발생했으면 구 데이터 덮어쓰기 무효화
+            const curPendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
+            if (thisSeq !== eventReadSeq || pendingWrites > 0 || curPendingQueue.length > 0) {
+                return;
+            }
+
+            cachedEvents = extractTeamConfig(rawData);
             saveLocalEventsSnapshot();
 
             renderCalendarUI();
@@ -2191,6 +2203,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const target = trash.find(ev => ev.id === id);
         if (!target) return alert('복원할 일정을 찾을 수 없습니다.');
 
+        eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         trash = trash.filter(ev => ev.id !== id);
         localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify(trash));
 
@@ -2234,6 +2247,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const noteId = document.getElementById('modal-note-id').value;
         
         if (!title) return alert("제목을 입력하세요.");
+        eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         closeModal(); 
 
         const isVacation = line === '🏖️ 휴가자';
@@ -2343,6 +2357,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             : `'${target ? target.title : '일정'}'을 삭제하시겠습니까?`;
         if (!confirm(msg)) return;
 
+        eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         const toDeleteList = isMulti ? group : (target ? [target] : [{ id }]);
         saveDeletedToTrash(toDeleteList);
 
@@ -2800,6 +2815,21 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     const ACTIONS_TRASH_KEY = 'hitachi_deleted_actions_trash';
     const recentlyDeletedActionIds = new Set();
 
+    // ===== 🛡️ 낙관적 업데이트 상태 보존 및 충돌 화해 (Optimistic State Reconciliation) =====
+    // 사용자가 로컬에서 수정한 최신 상태가 서버의 지연된 구 데이터(Stale Cache Lag)에 의해 덮어씌워지는 것을 원천 차단
+    const recentActionUpdates = new Map(); // id -> { patch, timestamp }
+    const OPTIMISTIC_EXPIRE_MS = 15000; // 15초간 클라이언트 상태 보호 유지
+
+    function recordOptimisticActionUpdate(id, patch) {
+        if (!id) return;
+        const prev = recentActionUpdates.get(id) || {};
+        recentActionUpdates.set(id, {
+            ...prev,
+            ...patch,
+            timestamp: Date.now()
+        });
+    }
+
     function saveLocalActionsSnapshot() {
         try {
             localStorage.setItem(ACTIONS_SNAPSHOT_KEY, JSON.stringify(actionItems));
@@ -2833,6 +2863,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     // ---------- 서버 통신 ----------
+    let actionReadSeq = 0;
+
     async function loadActions() {
         if (!SCRIPT_URL.startsWith("https")) return;
 
@@ -2845,10 +2877,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             return;
         }
 
+        const thisSeq = ++actionReadSeq;
+
         try {
             const res = await fetch(SCRIPT_URL + "?t=" + new Date().getTime(),
                 { method: "POST", cache: "no-store", body: JSON.stringify({ action: 'readActions' }) });
             const data = await res.json();
+
+            // 🛡️ 응답 도착 시점에 사용자가 새 수정을 진행 중이거나(pendingWrites > 0) 새 시퀀스가 발생했으면 구 데이터 덮어쓰기 무효화
+            const curPendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
+            if (thisSeq !== actionReadSeq || pendingWrites > 0 || curPendingQueue.length > 0) {
+                return;
+            }
             if (Array.isArray(data)) {
                 // 🛡️ 구글시트 ID 컬럼 헤더가 비어있어({" ": "ACT_..."}) 'id' 키가 없는 경우 방어적으로 정규화
                 data.forEach(a => {
@@ -2860,8 +2900,54 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                         if (idKey) a.id = a[idKey];
                     }
                 });
+
+                // 🛡️ Optimistic Reconciliation: 서버 응답과 로컬 최신 수정사항 병합
+                // 서버의 지연된 캐시로 인해 구 데이터(예: 아직 'open')가 오더라도 로컬의 최신 상태('done')를 유지
+                const now = Date.now();
+                data.forEach(srvItem => {
+                    if (!srvItem || !srvItem.id) return;
+                    const opt = recentActionUpdates.get(srvItem.id);
+                    if (opt) {
+                        if (now - opt.timestamp < OPTIMISTIC_EXPIRE_MS) {
+                            if (opt.status !== undefined && srvItem.status !== opt.status) {
+                                srvItem.status = opt.status;
+                                if (opt.completedAt !== undefined) srvItem.completedAt = opt.completedAt;
+                            }
+                            if (opt.progressLog !== undefined && srvItem.progressLog !== opt.progressLog) {
+                                srvItem.progressLog = opt.progressLog;
+                            }
+                            if (opt.title !== undefined && srvItem.title !== opt.title) {
+                                srvItem.title = opt.title;
+                            }
+                            if (opt.detail !== undefined && srvItem.detail !== opt.detail) {
+                                srvItem.detail = opt.detail;
+                            }
+                            if (opt.dueDate !== undefined && srvItem.dueDate !== opt.dueDate) {
+                                srvItem.dueDate = opt.dueDate;
+                            }
+                            if (opt.priority !== undefined && srvItem.priority !== opt.priority) {
+                                srvItem.priority = opt.priority;
+                            }
+                            if (opt.assignee !== undefined && srvItem.assignee !== opt.assignee) {
+                                srvItem.assignee = opt.assignee;
+                            }
+                        } else {
+                            recentActionUpdates.delete(srvItem.id);
+                        }
+                    }
+                });
+
                 const trashIds = new Set(getActionsTrash().map(t => t.id));
                 actionItems = data.filter(a => a && a.id && !trashIds.has(a.id) && !recentlyDeletedActionIds.has(a.id));
+
+                // 서버 데이터가 로컬 변경사항을 정상 반영 완료했으면 recentActionUpdates에서 정리
+                actionItems.forEach(item => {
+                    const opt = recentActionUpdates.get(item.id);
+                    if (opt && item.status === opt.status && (opt.progressLog === undefined || item.progressLog === opt.progressLog)) {
+                        recentActionUpdates.delete(item.id);
+                    }
+                });
+
                 actionBackendReady = true;
                 saveLocalActionsSnapshot();
             } else {
@@ -3257,12 +3343,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (!title) return alert('업무 내용을 입력해주세요.');
         if (actionPickedAssignees.length === 0) return alert('담당자를 선택해주세요.');
 
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+
         const assigneeStr = actionPickedAssignees.join(', ');
 
         if (editId) {
             const it = actionItems.find(a => a.id === editId);
             if (!it) return;
             Object.assign(it, { title, detail, dueDate, priority, assignee: assigneeStr });
+            recordOptimisticActionUpdate(editId, { title, detail, dueDate, priority, assignee: assigneeStr });
             sendToSheet({ action: 'updateAction', ...it });
         } else {
             const now = todayStrLocal();
@@ -3306,18 +3395,25 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     function toggleActionDone(id) {
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         const done = it.status !== 'done';
         it.status = done ? 'done' : 'open';
         it.completedAt = done ? todayStrLocal() : '';
+        
+        // 🛡️ 낙관적 상태 등록 (서버의 지연된 구 데이터 덮어쓰기 완벽 방지)
+        recordOptimisticActionUpdate(id, {
+            status: it.status,
+            completedAt: it.completedAt
+        });
+
         sendToSheet({ action: 'updateAction', ...it });
         saveLocalActionsSnapshot();
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
         if (typeof renderCalendar === 'function') renderCalendar();
-        syncAfterWrites();
     }
 
     function editActionItem(id) {
@@ -3342,16 +3438,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (!input) return;
         const text = input.value.trim();
         if (!text) return;
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         const me = getCurrentUsername();
         const line = `${shortDateLocal()} / ${me ? me + ' ' : ''}${text}`;
         it.progressLog = it.progressLog ? (it.progressLog + '\n' + line) : line;
+        recordOptimisticActionUpdate(id, { progressLog: it.progressLog });
         sendToSheet({ action: 'updateAction', ...it });
         saveLocalActionsSnapshot();
         input.value = '';
         renderActionList();
-        syncAfterWrites();
     }
 
     // ---------- ✏️ 진행상황 전체 수정/편집 ----------
@@ -3372,15 +3469,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     function saveProgressLog(id) {
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         const textarea = document.getElementById(`progress-edit-textarea-${id}`);
         if (!textarea) return;
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         it.progressLog = textarea.value.trim();
+        recordOptimisticActionUpdate(id, { progressLog: it.progressLog });
         sendToSheet({ action: 'updateAction', ...it });
         saveLocalActionsSnapshot();
         renderActionList();
-        syncAfterWrites();
         if (typeof showToast === 'function') showToast('진행상황이 수정되었습니다.', 'success');
     }
 
@@ -3388,6 +3486,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         if (!confirm(`'${it.title}' 항목을 삭제하시겠습니까?`)) return;
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
         recentlyDeletedActionIds.add(id);
         saveDeletedActionToTrash(it);
         actionItems = actionItems.filter(a => a.id !== id);
@@ -3414,6 +3513,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         let trash = getActionsTrash();
         const target = trash.find(a => a.id === id);
         if (!target) return alert('복원할 업무를 찾을 수 없습니다.');
+        actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
 
         // 휴지통 및 삭제 대기 목록에서 제거
         trash = trash.filter(a => a.id !== id);
