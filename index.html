@@ -1418,17 +1418,19 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
-        // 🛡️ 백엔드 success 여부 검증 (busy / 잠금 실패 시 throw하여 오프라인 재시도 큐로 보호)
+        // 🛡️ 백엔드 응답 엄격 검증 (파싱 실패 또는 success: false 시 무조건 throw하여 오프라인 재시도 큐로 안전 보호)
+        const text = await res.text();
+        let data;
         try {
-            const data = await res.json();
-            if (data && data.success === false) {
-                throw new Error(data.error || 'Server returned success: false');
-            }
-            return data;
+            data = JSON.parse(text);
         } catch (jsonErr) {
-            if (jsonErr.message.includes('Server returned') || jsonErr.message.includes('busy')) throw jsonErr;
-            return true;
+            throw new Error('Server returned invalid JSON response: ' + (text ? text.slice(0, 100) : 'empty'));
         }
+
+        if (data && data.success === false) {
+            throw new Error(data.error || 'Server returned success: false');
+        }
+        return data;
     }
 
     // 미전송 대기 큐 순차 전송 (네트워크 복구 시 자동 반영)
@@ -1754,6 +1756,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         updateAlarmBadge();
     }
 
+    // 🌟 Action Drawer 및 외부 모듈 연동용 표준 캘린더 렌더러 함수
+    function renderCalendar() {
+        renderCalendarUI();
+    }
+
     // ===== ➡️ PC 캘린더 일정 배치 (연속 일정은 하나의 긴 막대로) =====
     const SPAN_LANE_H = 34;   // 막대 높이(px)
     const SPAN_LANE_GAP = 4;  // 막대 사이 간격(px)
@@ -1763,8 +1770,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     function renderEventsToPC() {
-        // 0) 기존 카드/자리표시자 제거
-        document.querySelectorAll('#calendar-pc-container .event-card, #calendar-pc-container .span-area').forEach(el => el.remove());
+        // 0) 기존 카드/자리표시자 및 이전 Action 칩 래퍼 깨끗이 제거 (중복 누적 방지)
+        document.querySelectorAll('#calendar-pc-container .event-card, #calendar-pc-container .span-area, #calendar-pc-container .act-cell-wrapper').forEach(el => el.remove());
         document.querySelectorAll('#calendar-pc-container .grid-cell.has-span').forEach(el => el.classList.remove('has-span'));
 
         // 1) 그룹키로 묶기
@@ -2766,9 +2773,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     let actionPickedAssignees = [];
     let actionAlertCheckedThisSession = false; // 세션당 1회 팝업 제어
 
-    function escHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g,
-            c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    if (typeof escHtml !== 'function') {
+        window.escHtml = function(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g,
+                c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        };
     }
     function todayStrLocal() { return toDateStr(new Date()); }
     function shortDateLocal() {
@@ -4094,7 +4103,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const seen = new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'));
         const dueLog = JSON.parse(localStorage.getItem(DUE_LOG_KEY) || '{}');
         const today = todayStrLocal();
-        const mineOpen = actionItems.filter(a => a.assignee === me && a.status !== 'done');
+        // 다중 담당자(예: '홍길동, 김철수')로 지정된 업무도 누락 없이 알림 대상에 포함
+        const mineOpen = typeof isAssignee === 'function' 
+            ? actionItems.filter(a => isAssignee(a, me) && a.status !== 'done')
+            : (typeof myOpenActions === 'function' ? myOpenActions() : actionItems.filter(a => a.assignee === me && a.status !== 'done'));
 
         // ① 새로 지시받은 업무 (내가 스스로 만든 건 제외)
         const fresh = mineOpen.filter(a => !seen.has(a.id) && a.assigner !== me);
