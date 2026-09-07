@@ -2114,8 +2114,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             text += '가용인원 : (등록된 팀원이 없습니다. 팀원 관리에서 먼저 등록해주세요)';
         } else {
             const vacationers = getVacationersForRange(dateStr, dateStr);
-            const available = teamMembers.filter(m => !vacationers.has(m));
-            text += `가용인원 : ${available.length ? available.join(', ') : '없음 (전원 휴가)'}`;
+            const EXCLUDED_MEMBERS = new Set(['대아', '한석일', '서석준']);
+            const available = teamMembers.filter(m => {
+                if (!m) return false;
+                const trimmed = m.trim();
+                if (EXCLUDED_MEMBERS.has(trimmed)) return false;
+                if (vacationers.has(m) || vacationers.has(trimmed)) return false;
+                return true;
+            });
+            text += `가용인원 : ${available.length ? available.join(', ') : '없음'}`;
         }
         return text;
     }
