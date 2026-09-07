@@ -757,8 +757,31 @@ html.dark .safety-days {
             <button id="mobile-holiday-btn" class="hidden px-4 py-3 text-sm font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 border border-orange-300 rounded-lg flex items-center justify-center gap-1 whitespace-nowrap">
                 <span class="material-symbols-outlined text-[18px]">celebration</span><span id="mobile-holiday-btn-label">연휴</span>
             </button>
+            <button id="mobile-assign-btn" class="hidden px-4 py-3 text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-300 rounded-lg flex items-center justify-center gap-1 whitespace-nowrap" title="인원 배정 기능">
+                <span class="material-symbols-outlined text-[18px]">groups</span><span class="hidden sm:inline">인원배정</span>
+            </button>
             <button id="mobile-add-btn" class="flex-1 py-3 text-sm font-bold bg-primary text-white rounded-lg flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">add</span> 새 일정 추가
+            </button>
+        </div>
+    </div>
+</div>
+<!-- 🧑‍🤝‍🧑 인원 배정 기능: 라인별 작업 리스트 + 가용인원 요약/복사 모달 -->
+<div id="assign-modal" class="fixed inset-0 bg-black/60 hidden z-[60] flex items-end md:items-center justify-center backdrop-blur-sm">
+    <div class="bg-surface w-full md:max-w-md rounded-t-2xl md:rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[85vh]">
+        <div class="px-5 py-4 border-b border-border flex justify-between items-center bg-background/50">
+            <h3 id="assign-modal-title" class="text-lg font-bold text-text-main flex items-center gap-2">
+                <span class="material-symbols-outlined text-blue-500">groups</span>인원 배정
+            </h3>
+            <button onclick="closeAssignModal()" class="text-text-muted hover:text-red-500 p-1"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 min-h-[200px]">
+            <textarea id="assign-result-text" readonly class="w-full h-64 md:h-72 bg-background border border-border rounded-lg p-3 text-sm font-mono leading-relaxed outline-none resize-none text-text-main"></textarea>
+        </div>
+        <div class="p-4 border-t border-border bg-background/50 flex gap-2">
+            <button onclick="closeAssignModal()" class="px-4 py-3 text-sm font-bold bg-background border border-border rounded-lg text-text-muted hover:text-text-main">닫기</button>
+            <button id="assign-copy-btn" onclick="copyAssignText()" class="flex-1 py-3 text-sm font-bold bg-primary text-white rounded-lg flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">content_copy</span> 복사하기
             </button>
         </div>
     </div>
@@ -1536,7 +1559,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                     const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                     const hol = isHoliday(dateStr);
                     const holBadge = hol ? '<span class="text-[9px] font-black text-orange-600 dark:text-orange-300 ml-1 border border-orange-400 rounded px-1">연휴</span>' : '';
-                    grid.innerHTML += `<div class="grid-header date-header-clickable ${hol ? 'is-holiday-header' : color}" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayNames[idx]+' ('+day+'일)'}${holBadge}</div>`;
+                    grid.innerHTML += `<div class="grid-header ${hol ? 'is-holiday-header' : color} flex-col gap-1">
+                        <span class="date-header-clickable cursor-pointer" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayNames[idx]+' ('+day+'일)'}${holBadge}</span>
+                        <button type="button" onclick="event.stopPropagation(); openAssignModal('${dateStr}')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-0.5" title="인원 배정 기능">
+                            <span class="material-symbols-outlined text-[11px]">groups</span>인원배정
+                        </button>
+                    </div>`;
                 } else {
                     grid.innerHTML += `<div class="grid-header ${color}"></div>`;
                 }
@@ -1990,12 +2018,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const container = document.getElementById('mobile-day-events');
         const addBtn = document.getElementById('mobile-add-btn');
         const holBtn = document.getElementById('mobile-holiday-btn');
+        const assignBtn = document.getElementById('mobile-assign-btn');
         
         if (isNotes) {
             const wNum = dateStr.includes('-W') ? dateStr.split('-W')[1] : '';
             titleEl.innerText = `${currentMonth}월 ${wNum ? wNum + '주차 ' : ''}비고 일정`;
             addBtn.onclick = () => { closeMobileDayView(); openModal(dateStr); };
             holBtn.classList.add('hidden');
+            assignBtn.classList.add('hidden');
         } else {
             const d = toDateObj(dateStr);
             const holMark = isHoliday(dateStr) ? ' 🇰🇷' : '';
@@ -2005,6 +2035,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             holBtn.classList.remove('hidden');
             document.getElementById('mobile-holiday-btn-label').innerText = isHoliday(dateStr) ? '연휴 해제' : '연휴 설정';
             holBtn.onclick = () => { closeMobileDayView(); openHolidayModal(dateStr); };
+            // 🧑‍🤝‍🧑 인원 배정 기능 버튼
+            assignBtn.classList.remove('hidden');
+            assignBtn.onclick = () => { openAssignModal(dateStr); };
         }
 
         container.innerHTML = '';
@@ -2057,6 +2090,70 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     function closeMobileDayView() { document.getElementById('mobile-day-modal').classList.add('hidden'); }
+
+    // ===== 🧑‍🤝‍🧑 인원 배정 기능: 해당 날짜의 라인별 작업 리스트 + 가용인원(휴가자 제외) 생성/복사 =====
+    function buildAssignReportText(dateStr) {
+        const d = toDateObj(dateStr);
+        const month = d.getMonth() + 1;
+        const day = d.getDate();
+        let text = `${month}월 ${day}일 작업 리스트\n`;
+
+        const workLines = lines.filter(l => l !== '🏖️ 휴가자');
+        let hasTask = false;
+        workLines.forEach(line => {
+            const evs = cachedEvents.filter(ev => ev.date === dateStr && ev.line === line);
+            evs.forEach(ev => {
+                hasTask = true;
+                text += `${line} ${ev.title || ''} : \n`;
+            });
+        });
+        if (!hasTask) text += '(등록된 작업이 없습니다)\n';
+
+        text += '\n';
+        if (teamMembers.length === 0) {
+            text += '가용인원 : (등록된 팀원이 없습니다. 팀원 관리에서 먼저 등록해주세요)';
+        } else {
+            const vacationers = getVacationersForRange(dateStr, dateStr);
+            const available = teamMembers.filter(m => !vacationers.has(m));
+            text += `가용인원 : ${available.length ? available.join(', ') : '없음 (전원 휴가)'}`;
+        }
+        return text;
+    }
+
+    function openAssignModal(dateStr) {
+        const d = toDateObj(dateStr);
+        document.getElementById('assign-modal-title').innerHTML = `<span class="material-symbols-outlined text-blue-500">groups</span>${d.getMonth() + 1}월 ${d.getDate()}일 인원 배정`;
+        document.getElementById('assign-result-text').value = buildAssignReportText(dateStr);
+        document.getElementById('assign-modal').classList.remove('hidden');
+    }
+
+    function closeAssignModal() {
+        document.getElementById('assign-modal').classList.add('hidden');
+    }
+
+    function copyAssignText() {
+        const ta = document.getElementById('assign-result-text');
+        const text = ta.value;
+        const btn = document.getElementById('assign-copy-btn');
+        const showCopied = () => {
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> 복사됨!';
+            setTimeout(() => { btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">content_copy</span> 복사하기'; }, 1500);
+        };
+        const fallbackCopy = () => {
+            ta.removeAttribute('readonly');
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            try { document.execCommand('copy'); } catch (e) {}
+            ta.setAttribute('readonly', 'true');
+            showCopied();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
+        } else {
+            fallbackCopy();
+        }
+    }
+    // ===========================
 
     // 🔔 분류가 Setup일 때만 알림 체크박스 노출
     function toggleAlarmWrapper() {
