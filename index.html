@@ -1016,7 +1016,33 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     // ===== 🛡️ 무사고 기준일 관리 (전역 서버 동기화) =====
     const SAFETY_CONFIG_ID = 'SAFETY_CONFIG';
     const SAFETY_CONFIG_DATE = 'config-safety';
-    let safetyStartDate = localStorage.getItem('safety_start_date') || '2026-08-20';
+
+    // 🛡️ 날짜 형식 정규화 (구글 시트의 ISO 8601 Date 객체 직렬화 형태를 로컬 YYYY-MM-DD로 정확히 복원)
+    function normalizeDateStr(val) {
+        if (!val) return '';
+        const str = String(val).trim();
+        if (!str) return '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            return str;
+        }
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        const match = str.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+        if (match) {
+            const y = match[1];
+            const m = match[2].padStart(2, '0');
+            const day = match[3].padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        return str;
+    }
+
+    let safetyStartDate = normalizeDateStr(localStorage.getItem('safety_start_date')) || '2026-08-20';
     let safetyConfigOnServer = false;
 
     // 서버에서 받은 이벤트 중 팀원/연휴/무사고 설정 행을 추출하고, 화면 렌더링 대상에서는 제외
@@ -1067,10 +1093,13 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             safetyConfigOnServer = true;
             const last = safetyCfgs[safetyCfgs.length - 1];
             if (last.worker && String(last.worker).trim()) {
-                safetyStartDate = String(last.worker).trim();
-                localStorage.setItem('safety_start_date', safetyStartDate);
-                if (typeof updateSafetyCounterDisplay === 'function') {
-                    updateSafetyCounterDisplay();
+                const parsedDate = normalizeDateStr(String(last.worker).trim());
+                if (parsedDate) {
+                    safetyStartDate = parsedDate;
+                    localStorage.setItem('safety_start_date', safetyStartDate);
+                    if (typeof updateSafetyCounterDisplay === 'function') {
+                        updateSafetyCounterDisplay();
+                    }
                 }
             }
         }
@@ -1080,7 +1109,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function saveSafetyStartDateToServer(newDateStr) {
         if (!newDateStr) return;
-        safetyStartDate = newDateStr;
+        safetyStartDate = normalizeDateStr(newDateStr);
         localStorage.setItem('safety_start_date', safetyStartDate);
         if (typeof updateSafetyCounterDisplay === 'function') {
             updateSafetyCounterDisplay();
@@ -2766,12 +2795,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     const DEFAULT_SAFETY_START_DATE = '2026-08-20';
 
     function getSafetyStartDateStr() {
-        return (typeof safetyStartDate !== 'undefined' && safetyStartDate) || localStorage.getItem('safety_start_date') || DEFAULT_SAFETY_START_DATE;
+        const raw = (typeof safetyStartDate !== 'undefined' && safetyStartDate) || localStorage.getItem('safety_start_date') || DEFAULT_SAFETY_START_DATE;
+        return (typeof normalizeDateStr === 'function' ? normalizeDateStr(raw) : raw) || DEFAULT_SAFETY_START_DATE;
     }
 
     function calculateSafetyDays(startDateStr) {
-        const s = startDateStr || getSafetyStartDateStr();
+        const raw = startDateStr || getSafetyStartDateStr();
+        const s = (typeof normalizeDateStr === 'function' ? normalizeDateStr(raw) : raw) || DEFAULT_SAFETY_START_DATE;
         const parts = s.split('-').map(Number);
+        if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+            return 1;
+        }
         const startObj = new Date(parts[0], parts[1] - 1, parts[2]);
         const now = new Date();
         const todayObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -2825,7 +2859,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     function saveSafetyStartDate() {
         const inputEl = document.getElementById('safety-start-date-input');
         if (!inputEl || !inputEl.value) return;
-        const newDate = inputEl.value;
+        const newDate = (typeof normalizeDateStr === 'function' ? normalizeDateStr(inputEl.value) : inputEl.value);
         if (typeof saveSafetyStartDateToServer === 'function') {
             saveSafetyStartDateToServer(newDate);
         } else {
