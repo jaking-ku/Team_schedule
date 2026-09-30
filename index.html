@@ -40,6 +40,11 @@ html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !impor
 .date-header-clickable { cursor: pointer; transition: background-color 0.15s; }
 .date-header-clickable:hover { background-color: rgba(249, 115, 22, 0.12); }
 
+/* 📅 이전/다음 달 날짜 스타일 (자연스러운 월간 경계 구분) */
+.other-month-cell { background-color: rgba(148, 163, 184, 0.05); }
+html.dark .other-month-cell { background-color: rgba(51, 65, 85, 0.25); }
+.other-month-header { opacity: 0.85; }
+
 .event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
 .cat-normal { border-left-color: #b7000c; } 
 .cat-pm { border-left-color: #10b981; color: #059669; }     
@@ -1548,25 +1553,59 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         });
     }
 
-    // 💻 PC 렌더링 (가로 타임라인 & 버그 없는 드래그 앤 드롭)
+    // 💻 PC 렌더링 (가로 타임라인 & 월간 경계 크로스오버 날짜 완전 지원)
     function generateCalendarPC() {
         const container = document.getElementById('calendar-pc-container');
         container.innerHTML = '';
         
         const firstDay = new Date(currentYear, currentMonth - 1, 1);
         const lastDay = new Date(currentYear, currentMonth, 0);
-        let startIdx = (firstDay.getDay() + 6) % 7;
+        let startIdx = (firstDay.getDay() + 6) % 7; // 0: 월요일 ~ 6: 일요일
         let totalDays = lastDay.getDate();
+
+        function createDayItem(dObj, isCurr) {
+            const y = dObj.getFullYear();
+            const m = dObj.getMonth() + 1;
+            const d = dObj.getDate();
+            const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            return { dateObj: dObj, dateStr, year: y, month: m, day: d, isCurrentMonth: isCurr };
+        }
+
         let weeks = [];
-        let currentWeek = new Array(7).fill(null);
+        let currentWeek = [];
+
+        // 1주차 앞부분: 이전 달 말일 날짜들로 채우기
+        for (let i = 0; i < startIdx; i++) {
+            const prevD = new Date(currentYear, currentMonth - 1, 1 - (startIdx - i));
+            currentWeek.push(createDayItem(prevD, false));
+        }
+
+        // 이번 달 1일부터 채우기
         let dayCount = 1;
-        for (let i = startIdx; i < 7; i++) currentWeek[i] = dayCount++;
+        while (currentWeek.length < 7 && dayCount <= totalDays) {
+            const currD = new Date(currentYear, currentMonth - 1, dayCount++);
+            currentWeek.push(createDayItem(currD, true));
+        }
         weeks.push(currentWeek);
+
+        // 이후 주차 채우기
         while (dayCount <= totalDays) {
-            let week = new Array(7).fill(null);
-            for (let i = 0; i < 7 && dayCount <= totalDays; i++) week[i] = dayCount++;
+            let week = [];
+            for (let i = 0; i < 7 && dayCount <= totalDays; i++) {
+                const currD = new Date(currentYear, currentMonth - 1, dayCount++);
+                week.push(createDayItem(currD, true));
+            }
+            // 마지막 주차 뒷부분: 7칸이 다 차지 않았다면 다음 달 초 날짜들로 채우기
+            if (week.length < 7) {
+                let nextDayCount = 1;
+                while (week.length < 7) {
+                    const nextD = new Date(currentYear, currentMonth, nextDayCount++);
+                    week.push(createDayItem(nextD, false));
+                }
+            }
             weeks.push(week);
         }
+
         const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
         const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
 
@@ -1582,32 +1621,32 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             grid.className = 'grid-schedule min-w-[1100px]';
             
             grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
-            week.forEach((day, idx) => {
+            week.forEach((dayInfo, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
-                if (day) {
-                    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                    const hol = isHoliday(dateStr);
-                    const holBadge = hol ? '<span class="text-[9px] font-black text-orange-600 dark:text-orange-300 ml-1 border border-orange-400 rounded px-1">연휴</span>' : '';
-                    grid.innerHTML += `<div class="grid-header ${hol ? 'is-holiday-header' : color} flex-col gap-1">
-                        <span class="date-header-clickable cursor-pointer" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayNames[idx]+' ('+day+'일)'}${holBadge}</span>
-                        <button type="button" onclick="event.stopPropagation(); openAssignModal('${dateStr}')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-0.5" title="인원 배정 기능">
-                            <span class="material-symbols-outlined text-[11px]">groups</span>인원배정
-                        </button>
-                    </div>`;
-                } else {
-                    grid.innerHTML += `<div class="grid-header ${color}"></div>`;
-                }
+                const dateStr = dayInfo.dateStr;
+                const hol = isHoliday(dateStr);
+                const holBadge = hol ? '<span class="text-[9px] font-black text-orange-600 dark:text-orange-300 ml-1 border border-orange-400 rounded px-1">연휴</span>' : '';
+                const dayText = dayInfo.isCurrentMonth 
+                    ? `${dayNames[idx]} (${dayInfo.day}일)` 
+                    : `${dayNames[idx]} (${dayInfo.month}월 ${dayInfo.day}일)`;
+                const otherHeaderClass = !dayInfo.isCurrentMonth ? 'other-month-header opacity-80' : '';
+
+                grid.innerHTML += `<div class="grid-header ${hol ? 'is-holiday-header' : color} ${otherHeaderClass} flex-col gap-1">
+                    <span class="date-header-clickable cursor-pointer" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayText}${holBadge}</span>
+                    <button type="button" onclick="event.stopPropagation(); openAssignModal('${dateStr}')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-0.5" title="인원 배정 기능">
+                        <span class="material-symbols-outlined text-[11px]">groups</span>인원배정
+                    </button>
+                </div>`;
             });
             grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`;
             
             lines.forEach(line => {
                 grid.innerHTML += `<div class="grid-header bg-surface text-sm">${line}</div>`;
-                week.forEach(day => {
-                    if (day) {
-                        const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                        const holClass = isHoliday(dateStr) ? 'is-holiday' : '';
-                        grid.innerHTML += `<div class="grid-cell dropzone ${holClass} ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
-                    } else grid.innerHTML += `<div class="grid-cell bg-gray-100 dark:bg-gray-800/50 opacity-50 cursor-not-allowed"></div>`;
+                week.forEach(dayInfo => {
+                    const dateStr = dayInfo.dateStr;
+                    const holClass = isHoliday(dateStr) ? 'is-holiday' : '';
+                    const otherCellClass = !dayInfo.isCurrentMonth ? 'other-month-cell' : '';
+                    grid.innerHTML += `<div class="grid-cell dropzone ${holClass} ${otherCellClass} ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
                 });
                 const noteId = `note-${currentYear}-${currentMonth}-W${wIdx+1}`;
                 grid.innerHTML += `<div class="grid-cell dropzone is-note" data-line="${line}" data-date="${noteId}" onclick="openModal('${noteId}', '${line}')"></div>`;
@@ -1699,16 +1738,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const totalDays = new Date(currentYear, currentMonth, 0).getDate();
         const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
 
-        for (let i = 0; i < firstDayOffset; i++) {
-            grid.innerHTML += `<div class="bg-gray-50 dark:bg-gray-800/30 min-h-[70px]"></div>`;
-        }
-
-        for (let day = 1; day <= totalDays; day++) {
-            const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const dayOfWeek = new Date(currentYear, currentMonth - 1, day).getDay();
-            const dateColor = dayOfWeek === 0 ? 'text-red-500' : (dayOfWeek === 6 ? 'text-blue-500' : 'text-text-main');
+        function appendMobileCell(dObj, isCurr) {
+            const y = dObj.getFullYear();
+            const m = dObj.getMonth() + 1;
+            const d = dObj.getDate();
+            const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayOfWeek = dObj.getDay();
+            let dateColor = dayOfWeek === 0 ? 'text-red-500' : (dayOfWeek === 6 ? 'text-blue-500' : 'text-text-main');
+            if (!isCurr) {
+                dateColor = dayOfWeek === 0 ? 'text-red-400/60' : (dayOfWeek === 6 ? 'text-blue-400/60' : 'text-text-muted/60');
+            }
             const hol = isHoliday(dateStr);
-            const isToday = dateStr === todayStr ? 'bg-blue-50 dark:bg-blue-900/20' : (hol ? 'is-holiday bg-surface' : 'bg-surface');
+            const isToday = dateStr === todayStr ? 'bg-blue-50 dark:bg-blue-900/20' : (hol ? 'is-holiday bg-surface' : (isCurr ? 'bg-surface' : 'other-month-cell bg-slate-500/[0.03] dark:bg-slate-400/[0.03]'));
             const holDot = hol ? '<div class="text-[8px] font-black text-orange-600 dark:text-orange-300 text-center leading-none">연휴</div>' : '';
             
             const dayEvents = cachedEvents.filter(ev => ev.date === dateStr);
@@ -1730,9 +1771,26 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
             if (dayEvents.length > 3) eventsHtml += `<div class="text-[9px] font-bold text-text-muted text-center mt-[2px]">+${dayEvents.length - 3}건</div>`;
 
-            const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${day}</span>` : `<span>${day}</span>`;
+            const dayLabel = isCurr ? `${d}` : `${m}/${d}`;
+            const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${d}</span>` : `<span>${dayLabel}</span>`;
 
-            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${actBadgeHtml}${eventsHtml}</div></div>`;
+            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer ${!isCurr ? 'opacity-80' : ''}" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${actBadgeHtml}${eventsHtml}</div></div>`;
+        }
+
+        // 이전 달 날짜들 채우기
+        for (let i = 0; i < firstDayOffset; i++) {
+            appendMobileCell(new Date(currentYear, currentMonth - 1, 1 - (firstDayOffset - i)), false);
+        }
+
+        // 이번 달 날짜들 채우기
+        for (let day = 1; day <= totalDays; day++) {
+            appendMobileCell(new Date(currentYear, currentMonth - 1, day), true);
+        }
+
+        // 다음 달 날짜들 채우기 (7열 그리드 끝까지)
+        const remDays = (7 - ((firstDayOffset + totalDays) % 7)) % 7;
+        for (let i = 1; i <= remDays; i++) {
+            appendMobileCell(new Date(currentYear, currentMonth, i), false);
         }
         container.appendChild(grid);
 
