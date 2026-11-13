@@ -178,12 +178,12 @@ html.dark .delete-btn { background: rgba(30,41,59,0.85); }
 
 /* 🎨 [옵션 1] 부드러운 라운드 캡슐형 연속 일정 막대 (Span Card) */
 .span-area { flex-shrink: 0; pointer-events: none; }
-.grid-cell.has-span { position: relative; z-index: 5; }
+.grid-cell.has-span { position: relative; }
 .event-card.span-card {
     position: absolute;
     padding: 5px 9px;
     overflow: hidden;
-    z-index: 6;
+    z-index: 10 !important;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -377,17 +377,6 @@ html.dark .act-tab.active { color: #f87171; border-bottom-color: #f87171; }
     background: var(--bg-surface); color: var(--text-main); cursor: pointer; transition: all .12s; }
 .act-pick.on { background: #b7000c; border-color: #b7000c; color: #fff; }
 
-.span-area { flex-shrink: 0; pointer-events: none; }
-.grid-cell.has-span { position: relative; z-index: 5; }
-.event-card.span-card {
-    position: absolute; padding: 4px 8px; overflow: hidden; z-index: 6;
-    display: flex; flex-direction: column; justify-content: center;
-    cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-}
-.span-card .span-title { font-size: 12px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 14px; }
-.span-card .span-sub { font-size: 9px; font-weight: 600; opacity: 0.65; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.span-cont-left { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0 !important; }
-.span-cont-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ===== 🧭 사이드바 레이아웃 ===== */
@@ -2422,6 +2411,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         bar.style.left = '6px';
         bar.style.top = (6 + p.lane * (SPAN_LANE_H + SPAN_LANE_GAP)) + 'px';
         bar.style.height = SPAN_LANE_H + 'px';
+        bar.style.zIndex = '10';
 
         const totalDays = p.run.events.length;
         const alarmIcon = (ev.alarmOn === true || ev.alarmOn === 'true')
