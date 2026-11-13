@@ -24,18 +24,19 @@
 html.dark { --bg-surface: #1e293b; --bg-body: #0f172a; --border-color: #334155; --text-main: #f8fafc; --text-muted: #94a3b8; }
 body { font-family: 'Inter', 'Malgun Gothic', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s; }
 
-.grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; zoom: var(--calendar-zoom); }
-.grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
-.grid-header { background-color: var(--bg-body); font-weight: 700; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center;}
+/* 📅 캘린더 그리드 및 셀 레이아웃 */
+.grid-schedule { display: grid; grid-template-columns: 90px repeat(7, minmax(120px, 1fr)) minmax(140px, 1fr); gap: 1px; background-color: var(--border-color); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; zoom: var(--calendar-zoom); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.grid-cell { background-color: var(--bg-surface); min-height: 110px; padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: background-color 0.15s ease; }
+.grid-header { background-color: var(--bg-body); font-weight: 800; text-align: center; padding: 10px; font-size: 13px; display: flex; align-items: center; justify-content: center; letter-spacing: -0.2px; }
 
 .is-today { background-color: #fffbeb !important; border: 2px solid #fbbf24 !important; }
 html.dark .is-today { background-color: #1e293b !important; border: 2px solid #fbbf24 !important; }
 .is-note { background-color: rgba(0,0,0,0.02); }
 
 /* 🎌 연휴(공휴일) 표시 - 반투명 주황색 */
-.is-holiday { background-color: rgba(249, 115, 22, 0.14); }
+.is-holiday { background-color: rgba(249, 115, 22, 0.12); }
 html.dark .is-holiday { background-color: rgba(249, 115, 22, 0.18); }
-.is-holiday-header { background-color: rgba(249, 115, 22, 0.25) !important; color: #c2410c !important; cursor: pointer; }
+.is-holiday-header { background-color: rgba(249, 115, 22, 0.22) !important; color: #c2410c !important; cursor: pointer; }
 html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !important; color: #fdba74 !important; }
 .date-header-clickable { cursor: pointer; transition: background-color 0.15s; }
 .date-header-clickable:hover { background-color: rgba(249, 115, 22, 0.12); }
@@ -45,15 +46,218 @@ html.dark .is-holiday-header { background-color: rgba(249, 115, 22, 0.30) !impor
 html.dark .other-month-cell { background-color: rgba(51, 65, 85, 0.25); }
 .other-month-header { opacity: 0.85; }
 
-.event-card { position: relative; padding: 6px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #b7000c; background: var(--bg-surface); }
-.cat-normal { border-left-color: #b7000c; } 
-.cat-pm { border-left-color: #10b981; color: #059669; }     
-.cat-urgent { border-left-color: #f59e0b; color: #d97706; } 
-.cat-setup { border-left-color: #8b5cf6; color: #7c3aed; }  
-.vacation { border-left-color: #3b82f6; color: #2563eb; }   
+/* 🎨 [옵션 1] 소프트 틴트 및 카테고리 뱃지형 단일 일정 카드 */
+.event-card {
+    position: relative;
+    padding: 7px 9px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: grab;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.08);
+    background: var(--bg-surface);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.event-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.09);
+}
 
-.delete-btn { position: absolute; top: 2px; right: 2px; opacity: 0; transition: opacity 0.2s; background: var(--bg-surface); border-radius: 50%; }
+/* 소프트 파스텔 틴트 배경 & 도톰한 좌측 식별 바 */
+.event-card.vacation {
+    background: #f0f7ff !important;
+    border-color: #bfdbfe !important;
+    color: #1e3a8a !important;
+    border-left: 4.5px solid #3b82f6 !important;
+}
+html.dark .event-card.vacation {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    color: #93c5fd !important;
+    border-left-color: #60a5fa !important;
+}
+
+.event-card.cat-pm {
+    background: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+    color: #14532d !important;
+    border-left: 4.5px solid #16a34a !important;
+}
+html.dark .event-card.cat-pm {
+    background: rgba(22, 163, 74, 0.15) !important;
+    border-color: rgba(22, 163, 74, 0.35) !important;
+    color: #86efac !important;
+    border-left-color: #4ade80 !important;
+}
+
+.event-card.cat-setup {
+    background: #faf5ff !important;
+    border-color: #e9d5ff !important;
+    color: #581c87 !important;
+    border-left: 4.5px solid #9333ea !important;
+}
+html.dark .event-card.cat-setup {
+    background: rgba(147, 51, 234, 0.15) !important;
+    border-color: rgba(147, 51, 234, 0.35) !important;
+    color: #d8b4fe !important;
+    border-left-color: #c084fc !important;
+}
+
+.event-card.cat-urgent {
+    background: #fffbeb !important;
+    border-color: #fde68a !important;
+    color: #78350f !important;
+    border-left: 4.5px solid #f59e0b !important;
+}
+html.dark .event-card.cat-urgent {
+    background: rgba(245, 158, 11, 0.15) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+    color: #fde68a !important;
+    border-left-color: #fbbf24 !important;
+}
+
+.event-card.cat-normal {
+    background: #ffffff !important;
+    border-color: #fecaca !important;
+    color: #1e293b !important;
+    border-left: 4.5px solid #dc2626 !important;
+}
+html.dark .event-card.cat-normal {
+    background: rgba(220, 38, 38, 0.12) !important;
+    border-color: rgba(220, 38, 38, 0.3) !important;
+    color: #f8fafc !important;
+    border-left-color: #f87171 !important;
+}
+
+/* 카드 상단 카테고리 미니 뱃지 */
+.event-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    line-height: 1.2;
+    margin-bottom: 3px;
+    letter-spacing: -0.2px;
+}
+.event-card.vacation .event-cat-badge { background: #dbeafe; color: #1d4ed8; }
+.event-card.cat-pm .event-cat-badge { background: #dcfce7; color: #15803d; }
+.event-card.cat-setup .event-cat-badge { background: #f3e8ff; color: #7e22ce; }
+.event-card.cat-urgent .event-cat-badge { background: #fef3c7; color: #b45309; }
+.event-card.cat-normal .event-cat-badge { background: #fee2e2; color: #b91c1c; }
+html.dark .event-card.vacation .event-cat-badge { background: rgba(59, 130, 246, 0.3); color: #bfdbfe; }
+html.dark .event-card.cat-pm .event-cat-badge { background: rgba(34, 197, 94, 0.3); color: #bbf7d0; }
+html.dark .event-card.cat-setup .event-cat-badge { background: rgba(168, 85, 247, 0.3); color: #e9d5ff; }
+html.dark .event-card.cat-urgent .event-cat-badge { background: rgba(245, 158, 11, 0.3); color: #fde68a; }
+html.dark .event-card.cat-normal .event-cat-badge { background: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+
+/* 작업자 정갈한 칩 스타일 */
+.event-worker-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(0, 0, 0, 0.05);
+    color: #475569;
+    padding: 1.5px 7px;
+    border-radius: 9999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    margin-top: 4px;
+    line-height: 1.2;
+}
+html.dark .event-worker-chip {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+}
+
+.delete-btn { position: absolute; top: 3px; right: 3px; opacity: 0; transition: opacity 0.2s; background: rgba(255,255,255,0.85); border-radius: 50%; padding: 1px; }
+html.dark .delete-btn { background: rgba(30,41,59,0.85); }
 .event-card:hover .delete-btn { opacity: 1; }
+
+/* 🎨 [옵션 1] 부드러운 라운드 캡슐형 연속 일정 막대 (Span Card) */
+.span-area { flex-shrink: 0; pointer-events: none; }
+.grid-cell.has-span { position: relative; z-index: 5; }
+.event-card.span-card {
+    position: absolute;
+    padding: 5px 9px;
+    overflow: hidden;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+    border-radius: 8px !important;
+    border: 1.5px solid rgba(0,0,0,0.08) !important;
+    font-weight: 700;
+}
+.event-card.span-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.span-card.vacation {
+    background: #e0f2fe !important;
+    border-color: #7dd3fc !important;
+    color: #0369a1 !important;
+}
+html.dark .span-card.vacation {
+    background: rgba(56, 189, 248, 0.22) !important;
+    border-color: rgba(56, 189, 248, 0.45) !important;
+    color: #bae6fd !important;
+}
+
+.span-card.cat-pm {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #15803d !important;
+}
+html.dark .span-card.cat-pm {
+    background: rgba(34, 197, 94, 0.22) !important;
+    border-color: rgba(34, 197, 94, 0.45) !important;
+    color: #bbf7d0 !important;
+}
+
+.span-card.cat-setup {
+    background: #f3e8ff !important;
+    border-color: #d8b4fe !important;
+    color: #7e22ce !important;
+}
+html.dark .span-card.cat-setup {
+    background: rgba(168, 85, 247, 0.22) !important;
+    border-color: rgba(168, 85, 247, 0.45) !important;
+    color: #e9d5ff !important;
+}
+
+.span-card.cat-urgent {
+    background: #fef3c7 !important;
+    border-color: #fcd34d !important;
+    color: #b45309 !important;
+}
+html.dark .span-card.cat-urgent {
+    background: rgba(245, 158, 11, 0.22) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    color: #fde68a !important;
+}
+
+.span-card.cat-normal {
+    background: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+    color: #b91c1c !important;
+}
+html.dark .span-card.cat-normal {
+    background: rgba(239, 68, 68, 0.22) !important;
+    border-color: rgba(239, 68, 68, 0.45) !important;
+    color: #fca5a5 !important;
+}
+
+.span-card .span-title { font-size: 12px; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 14px; }
+.span-card .span-sub { font-size: 9.5px; font-weight: 700; opacity: 0.8; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1.5px; }
+.span-cont-left { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; border-left-style: dashed !important; }
+.span-cont-right { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right-style: dashed !important; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* 🌟 달력 날짜 셀 내 Action 항목 칩 스타일 (3번 기능) */
 .act-cell-chip {
@@ -2291,7 +2495,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         }
     }
 
-    // 카드 화면에 그리기 (글자 줄바꿈 적용)
+    // 카드 화면에 그리기 (글자 줄바꿈 및 [옵션 1] 소프트 틴트 뱃지 적용)
     function appendCardToPC(ev) {
         const target = document.querySelector(`#calendar-pc-container [data-date="${ev.date}"][data-line="${ev.line}"]`);
         if (target) {
@@ -2301,11 +2505,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             card.dataset.id = ev.id;
             card.dataset.catClass = ev.category || 'cat-normal';
             
+            const catBadgeText = isVac ? '휴가' : (ev.category === 'cat-pm' ? 'PM' : (ev.category === 'cat-setup' ? 'Setup' : (ev.category === 'cat-urgent' ? '긴급' : '')));
+            const catBadgeHtml = catBadgeText ? `<div class="event-cat-badge">${catBadgeText}</div>` : '';
+            
             card.onclick = (e) => { e.stopPropagation(); openEditModal(ev.id); };
             card.innerHTML = `
+                ${catBadgeHtml}
                 <div class="break-words whitespace-pre-wrap pr-5 leading-snug">${(ev.alarmOn === true || ev.alarmOn === 'true') ? '<span class="material-symbols-outlined text-[12px] align-middle mr-0.5">notifications</span>' : ''}${escHtml(ev.title)}</div>
-                ${ev.worker ? `<div class="text-[10px] opacity-70 mt-1">${escHtml(ev.worker)}</div>` : ''}
-                ${ev.registeredBy ? `<div class="text-[10px] opacity-50 mt-0.5 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">edit</span>${escHtml(ev.registeredBy)}</div>` : ''}
+                ${ev.worker ? `<div class="event-worker-chip"><span class="material-symbols-outlined text-[12px]">person</span>${escHtml(ev.worker)}</div>` : ''}
+                ${ev.registeredBy ? `<div class="text-[9.5px] opacity-50 mt-1 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">edit</span>${escHtml(ev.registeredBy)}</div>` : ''}
                 <span class="material-symbols-outlined delete-btn text-[16px]" onclick="deleteEvent(event, this)">close</span>
             `;
             target.appendChild(card);
