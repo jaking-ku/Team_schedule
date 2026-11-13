@@ -420,7 +420,7 @@ html.dark .safety-days {
             <span class="material-symbols-outlined">account_circle</span>
             <span id="header-username" class="truncate">이름 미설정</span>
         </button>
-        <button class="nav-item" onclick="loadEventsFromSheet()">
+        <button class="nav-item" onclick="manualSyncAll()">
             <span class="material-symbols-outlined">sync</span> SYNC
         </button>
         <div class="px-[18px] pt-1 pb-1">
@@ -727,7 +727,7 @@ html.dark .safety-days {
             </div>
             <div>
                 <label class="block text-xs font-bold text-text-muted mb-1">작업자</label>
-                <input type="text" id="modal-worker" placeholder="아래에서 팀원을 체크하거나 직접 입력 (쉼표로 구분)" oninput="renderWorkerChecklist()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
+                <input type="text" id="modal-worker" placeholder="아래에서 팀원을 체크하거나 직접 입력 (쉼표로 구분)" oninput="debouncedRenderWorkerChecklist()" class="w-full bg-background border border-border text-text-main text-sm rounded-lg p-3 outline-none">
                 <!-- 🧑‍🤝‍🧑 팀원 체크박스 선택 영역 (해당 날짜 휴가자는 자동 제외) -->
                 <div id="worker-checklist-wrapper" class="hidden mt-2 bg-background border border-border rounded-lg p-3">
                     <div class="flex justify-between items-center mb-2">
@@ -1182,6 +1182,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function saveSafetyStartDateToServer(newDateStr) {
         if (!newDateStr) return;
+        if (typeof invalidateEventsDirtySignature === 'function') invalidateEventsDirtySignature();
         safetyStartDate = normalizeDateStr(newDateStr);
         localStorage.setItem('safety_start_date', safetyStartDate);
         if (typeof updateSafetyCounterDisplay === 'function') {
@@ -1202,6 +1203,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     function saveTeamToServer() {
+        if (typeof invalidateEventsDirtySignature === 'function') invalidateEventsDirtySignature();
         localStorage.setItem('hitachi_team_members', JSON.stringify(teamMembers));
         localStorage.setItem('hitachi_team_member_emails', JSON.stringify(teamMemberEmails));
         localStorage.setItem('hitachi_team_member_opt_out', JSON.stringify(teamMemberOptOut));
@@ -1241,6 +1243,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     function isHoliday(dateStr) { return holidays.includes(dateStr); }
 
     function saveHolidaysToServer() {
+        if (typeof invalidateEventsDirtySignature === 'function') invalidateEventsDirtySignature();
         localStorage.setItem('hitachi_holidays', JSON.stringify(holidays));
         const payload = {
             id: HOLIDAY_CONFIG_ID, date: HOLIDAY_CONFIG_DATE, line: '',
@@ -1277,7 +1280,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         document.getElementById('holiday-modal').classList.remove('hidden');
     }
 
-    function closeHolidayModal() { document.getElementById('holiday-modal').classList.add('hidden'); }
+    function closeHolidayModal() {
+        document.getElementById('holiday-modal').classList.add('hidden');
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
+    }
 
     function toggleHoliday() {
         if (!holidayTargetDate) return;
@@ -1298,6 +1304,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         document.getElementById('team-modal').classList.add('hidden');
         // 일정 모달이 열려 있으면 체크리스트 즉시 갱신
         if (!document.getElementById('event-modal').classList.contains('hidden')) renderWorkerChecklist();
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
     }
 
     function renderTeamList() {
@@ -1437,6 +1444,41 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         return document.getElementById('modal-worker').value.split(',').map(s => s.trim()).filter(Boolean);
     }
 
+    const WORKER_CHECK_ON_CLASS = 'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border cursor-pointer select-none transition-colors bg-red-50 dark:bg-red-900/20 border-primary text-primary';
+    const WORKER_CHECK_OFF_CLASS = 'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border cursor-pointer select-none transition-colors bg-surface border-border text-text-main hover:border-primary/50';
+    let workerChecklistDebounceTimer = null;
+
+    function syncWorkerChecklistSelectionOnly() {
+        const listEl = document.getElementById('worker-checklist');
+        if (!listEl) return false;
+        const inputs = listEl.querySelectorAll('input[type="checkbox"]');
+        if (inputs.length === 0) return false;
+        const selected = parseWorkerInput();
+        inputs.forEach(input => {
+            const checked = selected.includes(input.value);
+            input.checked = checked;
+            if (input.parentElement) {
+                input.parentElement.className = checked ? WORKER_CHECK_ON_CLASS : WORKER_CHECK_OFF_CLASS;
+            }
+        });
+        return true;
+    }
+
+    function debouncedRenderWorkerChecklist() {
+        // 체크박스 DOM이 이미 있으면 즉시 경량 동기화하여 타이핑 지연(Input Lag) 0ms 유지
+        const noteId = document.getElementById('modal-note-id').value;
+        let startStr = document.getElementById('modal-start-date').value;
+        let endStr = document.getElementById('modal-end-date').value || startStr;
+        if (endStr < startStr) endStr = startStr;
+        const rangeKey = `${noteId}|${startStr}|${endStr}|${teamMembers.join('|')}`;
+        const listEl = document.getElementById('worker-checklist');
+        if (listEl && listEl.dataset.rangeKey === rangeKey && syncWorkerChecklistSelectionOnly()) {
+            return;
+        }
+        if (workerChecklistDebounceTimer) clearTimeout(workerChecklistDebounceTimer);
+        workerChecklistDebounceTimer = setTimeout(() => renderWorkerChecklist(), 80);
+    }
+
     function renderWorkerChecklist() {
         const wrapper = document.getElementById('worker-checklist-wrapper');
         const emptyHint = document.getElementById('worker-team-empty');
@@ -1446,6 +1488,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (teamMembers.length === 0) {
             wrapper.classList.add('hidden');
             emptyHint.classList.remove('hidden');
+            if (listEl) listEl.dataset.rangeKey = '';
             return;
         }
         emptyHint.classList.add('hidden');
@@ -1457,6 +1500,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         let endStr = document.getElementById('modal-end-date').value || startStr;
         if (endStr < startStr) endStr = startStr;
 
+        const rangeKey = `${noteId}|${startStr}|${endStr}|${teamMembers.join('|')}`;
+
         let vacationers = new Set();
         if (!noteId && startStr) vacationers = getVacationersForRange(startStr, endStr);
 
@@ -1465,12 +1510,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
         if (available.length === 0) {
             listEl.innerHTML = '<span class="text-xs text-text-muted">선택 가능한 팀원이 없습니다. (전원 휴가)</span>';
+            listEl.dataset.rangeKey = rangeKey;
         } else {
             listEl.innerHTML = available.map(m => {
                 const checked = selected.includes(m);
-                return `<label class="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border cursor-pointer select-none transition-colors ${checked ? 'bg-red-50 dark:bg-red-900/20 border-primary text-primary' : 'bg-surface border-border text-text-main hover:border-primary/50'}">
+                return `<label class="${checked ? WORKER_CHECK_ON_CLASS : WORKER_CHECK_OFF_CLASS}">
                     <input type="checkbox" value="${escHtml(m)}" ${checked ? 'checked' : ''} class="w-3.5 h-3.5 accent-[#b7000c] cursor-pointer" onchange="toggleWorkerFromChecklist()">${escHtml(m)}</label>`;
             }).join('');
+            listEl.dataset.rangeKey = rangeKey;
         }
 
         // 휴가로 제외된 인원 안내
@@ -1493,7 +1540,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const checked = Array.from(document.querySelectorAll('#worker-checklist input:checked')).map(i => i.value);
         const manual = parseWorkerInput().filter(w => !teamMembers.includes(w));
         document.getElementById('modal-worker').value = [...checked, ...manual].join(', ');
-        renderWorkerChecklist();
+        if (!syncWorkerChecklistSelectionOnly()) renderWorkerChecklist();
     }
     // ===========================
 
@@ -1621,8 +1668,23 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         });
     }
 
+    // 🧹 Sortable.js 인스턴스 추적 및 정리 (리렌더링 시 메모리 누수 원천 차단)
+    let activeSortableInstances = [];
+
+    function destroyActiveSortables() {
+        for (let i = 0; i < activeSortableInstances.length; i++) {
+            try {
+                if (activeSortableInstances[i] && typeof activeSortableInstances[i].destroy === 'function') {
+                    activeSortableInstances[i].destroy();
+                }
+            } catch (e) {}
+        }
+        activeSortableInstances.length = 0;
+    }
+
     // 💻 PC 렌더링 (가로 타임라인 & 월간 경계 크로스오버 날짜 완전 지원)
     function generateCalendarPC() {
+        destroyActiveSortables();
         const container = document.getElementById('calendar-pc-container');
         container.innerHTML = '';
         
@@ -1675,7 +1737,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         }
 
         const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-        const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+        const nowToday = new Date();
+        const todayStr = `${nowToday.getFullYear()}-${String(nowToday.getMonth()+1).padStart(2,'0')}-${String(nowToday.getDate()).padStart(2,'0')}`;
 
         weeks.forEach((week, wIdx) => {
             const weekLabel = document.createElement('h3');
@@ -1687,8 +1750,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             gridWrapper.className = 'overflow-x-auto no-scrollbar rounded-lg mb-8 shadow-sm';
             const grid = document.createElement('div');
             grid.className = 'grid-schedule min-w-[1100px]';
+            const gridHtmlParts = [];
             
-            grid.innerHTML += `<div class="grid-header text-text-muted">구분</div>`;
+            gridHtmlParts.push(`<div class="grid-header text-text-muted">구분</div>`);
             week.forEach((dayInfo, idx) => {
                 let color = idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : '';
                 const dateStr = dayInfo.dateStr;
@@ -1699,35 +1763,37 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                     : `${dayNames[idx]} (${dayInfo.month}월 ${dayInfo.day}일)`;
                 const otherHeaderClass = !dayInfo.isCurrentMonth ? 'other-month-header opacity-80' : '';
 
-                grid.innerHTML += `<div class="grid-header ${hol ? 'is-holiday-header' : color} ${otherHeaderClass} flex-col gap-1">
+                gridHtmlParts.push(`<div class="grid-header ${hol ? 'is-holiday-header' : color} ${otherHeaderClass} flex-col gap-1">
                     <span class="date-header-clickable cursor-pointer" onclick="openHolidayModal('${dateStr}')" title="클릭하여 연휴 설정/해제">${dayText}${holBadge}</span>
                     <button type="button" onclick="event.stopPropagation(); openAssignModal('${dateStr}')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-0.5" title="인원 배정 기능">
                         <span class="material-symbols-outlined text-[11px]">groups</span>인원배정
                     </button>
-                </div>`;
+                </div>`);
             });
-            grid.innerHTML += `<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`;
+            gridHtmlParts.push(`<div class="grid-header text-text-muted bg-gray-100 dark:bg-gray-800">비고</div>`);
             
             lines.forEach(line => {
-                grid.innerHTML += `<div class="grid-header bg-surface text-sm">${line}</div>`;
+                const safeLine = typeof escHtml === 'function' ? escHtml(line) : line;
+                gridHtmlParts.push(`<div class="grid-header bg-surface text-sm">${safeLine}</div>`);
                 week.forEach(dayInfo => {
                     const dateStr = dayInfo.dateStr;
                     const holClass = isHoliday(dateStr) ? 'is-holiday' : '';
                     const otherCellClass = !dayInfo.isCurrentMonth ? 'other-month-cell' : '';
-                    grid.innerHTML += `<div class="grid-cell dropzone ${holClass} ${otherCellClass} ${dateStr === todayStr ? 'is-today' : ''}" data-line="${line}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${line}')"></div>`;
+                    gridHtmlParts.push(`<div class="grid-cell dropzone ${holClass} ${otherCellClass} ${dateStr === todayStr ? 'is-today' : ''}" data-line="${safeLine}" data-date="${dateStr}" onclick="openModal('${dateStr}', '${safeLine}')"></div>`);
                 });
                 const noteId = `note-${currentYear}-${currentMonth}-W${wIdx+1}`;
-                grid.innerHTML += `<div class="grid-cell dropzone is-note" data-line="${line}" data-date="${noteId}" onclick="openModal('${noteId}', '${line}')"></div>`;
+                gridHtmlParts.push(`<div class="grid-cell dropzone is-note" data-line="${safeLine}" data-date="${noteId}" onclick="openModal('${noteId}', '${safeLine}')"></div>`);
             });
+            grid.innerHTML = gridHtmlParts.join('');
             gridWrapper.appendChild(grid);
             container.appendChild(gridWrapper);
         });
         
         // modal-line 옵션은 initLineSelect()에서 한 번만 초기화 (여기서 하면 수정 중 타이밍 버그 발생)
         
-        // 💡 완벽하게 수정된 드래그 앤 드롭
+        // 💡 완벽하게 수정된 드래그 앤 드롭 (인스턴스 추적 포함)
         document.querySelectorAll('.dropzone').forEach(zone => {
-            new Sortable(zone, {
+            const inst = new Sortable(zone, {
                 group: 'shared', 
                 animation: 150, 
                 ghostClass: 'opacity-50',
@@ -1760,6 +1826,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                         
                         // 로컬 스냅샷 즉시 보존
                         saveLocalEventsSnapshot();
+                        if (typeof invalidateEventsDirtySignature === 'function') invalidateEventsDirtySignature();
 
                         sendToSheet({ 
                             action: 'update', id: existingEvent.id, date: existingEvent.date, 
@@ -1775,6 +1842,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                     }
                 }
             });
+            activeSortableInstances.push(inst);
         });
     }
 
@@ -1795,16 +1863,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         
         const grid = document.createElement('div');
         grid.className = 'grid grid-cols-7 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 shadow-sm';
+        const mobileHtmlParts = [];
         
         const days = ['일', '월', '화', '수', '목', '금', '토'];
         days.forEach((d, i) => {
             const color = i === 0 ? 'text-red-500' : (i === 6 ? 'text-blue-500' : 'text-text-muted');
-            grid.innerHTML += `<div class="bg-background text-center py-2 text-[11px] font-bold ${color}">${d}</div>`;
+            mobileHtmlParts.push(`<div class="bg-background text-center py-2 text-[11px] font-bold ${color}">${d}</div>`);
         });
 
         const firstDayOffset = new Date(currentYear, currentMonth - 1, 1).getDay();
         const totalDays = new Date(currentYear, currentMonth, 0).getDate();
-        const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+        const nowTodayM = new Date();
+        const todayStr = `${nowTodayM.getFullYear()}-${String(nowTodayM.getMonth()+1).padStart(2,'0')}-${String(nowTodayM.getDate()).padStart(2,'0')}`;
 
         function appendMobileCell(dObj, isCurr) {
             const y = dObj.getFullYear();
@@ -1821,10 +1891,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             const holDot = hol ? '<div class="text-[8px] font-black text-orange-600 dark:text-orange-300 text-center leading-none">연휴</div>' : '';
             
             const dayEvents = cachedEvents.filter(ev => ev.date === dateStr);
+            const safeEsc = typeof escHtml === 'function' ? escHtml : (s => String(s == null ? '' : s));
             let eventsHtml = dayEvents.slice(0, 3).map(ev => {
                 const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
                 const catBg = isVac ? 'bg-blue-500' : (ev.category === 'cat-pm' ? 'bg-emerald-500' : (ev.category === 'cat-urgent' ? 'bg-amber-500' : (ev.category === 'cat-setup' ? 'bg-purple-500' : 'bg-red-600')));
-                return `<div class="text-[9px] text-white truncate px-1 rounded-[2px] mt-[2px] ${catBg}">${ev.title}</div>`;
+                return `<div class="text-[9px] text-white truncate px-1 rounded-[2px] mt-[2px] ${catBg}">${safeEsc(ev.title)}</div>`;
             }).join('');
 
             // 🌟 모바일 달력 셀 내 본인 Action 뱃지 표시
@@ -1842,7 +1913,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             const dayLabel = isCurr ? `${d}` : `${m}/${d}`;
             const todayCircle = dateStr === todayStr ? `<span class="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center">${d}</span>` : `<span>${dayLabel}</span>`;
 
-            grid.innerHTML += `<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer ${!isCurr ? 'opacity-80' : ''}" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${actBadgeHtml}${eventsHtml}</div></div>`;
+            mobileHtmlParts.push(`<div class="${isToday} min-h-[85px] p-1 flex flex-col cursor-pointer ${!isCurr ? 'opacity-80' : ''}" onclick="openMobileDayView('${dateStr}')"><div class="text-[11px] font-bold ${dateColor} mb-0.5 flex justify-center">${todayCircle}</div>${holDot}<div class="flex-1 flex flex-col gap-[1px]">${actBadgeHtml}${eventsHtml}</div></div>`);
         }
 
         // 이전 달 날짜들 채우기
@@ -1860,6 +1931,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         for (let i = 1; i <= remDays; i++) {
             appendMobileCell(new Date(currentYear, currentMonth, i), false);
         }
+        grid.innerHTML = mobileHtmlParts.join('');
         container.appendChild(grid);
 
         const notes = cachedEvents.filter(ev => ev.date.startsWith(`note-${currentYear}-${currentMonth}`));
@@ -1929,8 +2001,67 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         return toDateStr(d) === nextStr;
     }
 
+    // ===== ⚡ 렌더링 보호 (Edit Guard) 및 스마트 변경 감지 (Dirty Check) 상태 =====
+    let lastRawEventsSignature = '';
+    let lastRenderedDateStr = toDateStr(new Date());
+    let deferredCalendarRender = false;
+    let needsRenderOnVisible = false;
+    let calendarRenderRafId = null;
+
+    function invalidateEventsDirtySignature() {
+        lastRawEventsSignature = '';
+    }
+
+    function isUserEditingOrModalOpen() {
+        const modalIds = [
+            'event-modal', 'assign-modal', 'team-modal', 'equip-modal',
+            'search-modal', 'safety-modal', 'holiday-modal', 'trash-modal',
+            'alarm-modal', 'mobile-day-modal', 'dashboard-modal', 'htk-calendar-modal'
+        ];
+        for (let i = 0; i < modalIds.length; i++) {
+            const el = document.getElementById(modalIds[i]);
+            if (el && !el.classList.contains('hidden')) return true;
+        }
+        const actionForm = document.getElementById('action-form');
+        if (actionForm && !actionForm.classList.contains('hidden')) return true;
+
+        const active = document.activeElement;
+        if (active) {
+            const tag = active.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.isContentEditable) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function flushDeferredCalendarRender() {
+        if (deferredCalendarRender && !isUserEditingOrModalOpen()) {
+            deferredCalendarRender = false;
+            scheduleCalendarRender({ force: true });
+        }
+    }
+
+    function scheduleCalendarRender(options = {}) {
+        const force = Boolean(options.force);
+        if (!force && typeof document !== 'undefined' && document.hidden) {
+            needsRenderOnVisible = true;
+            return;
+        }
+        if (!force && isUserEditingOrModalOpen()) {
+            deferredCalendarRender = true;
+            return;
+        }
+        if (calendarRenderRafId) cancelAnimationFrame(calendarRenderRafId);
+        calendarRenderRafId = requestAnimationFrame(() => {
+            calendarRenderRafId = null;
+            renderCalendarUI({ force: true });
+        });
+    }
+
     // 🖥️ 화면만 다시 그리기 (네트워크 요청 없음 - 이미 받아온 cachedEvents 사용)
-    function renderCalendarUI() {
+    function renderCalendarUI(options = {}) {
+        lastRenderedDateStr = toDateStr(new Date());
         document.getElementById('month-title').innerText = `${currentYear}년 ${currentMonth}월`;
         updateSafetyCounterDisplay();
         generateCalendarPC();
@@ -1940,8 +2071,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     }
 
     // 🌟 Action Drawer 및 외부 모듈 연동용 표준 캘린더 렌더러 함수
-    function renderCalendar() {
-        renderCalendarUI();
+    function renderCalendar(options = {}) {
+        scheduleCalendarRender(options);
     }
 
     // ===== ➡️ PC 캘린더 일정 배치 (연속 일정은 하나의 긴 막대로) =====
@@ -2106,7 +2237,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     // ☁️ 데이터 로딩 및 동기화 (서버에서 새로 받아올 때만 호출)
     let eventReadSeq = 0;
 
-    async function loadEventsFromSheet() {
+    async function loadEventsFromSheet(force = false) {
         // 저장 요청이나 미전송 큐가 남아 있으면 서버에서 덮어쓰지 않는다 (Silent Rollback 완벽 방지)
         const pendingQueue = typeof getPendingQueue === 'function' ? getPendingQueue() : [];
         if (pendingWrites > 0 || pendingQueue.length > 0) {
@@ -2131,15 +2262,29 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                 return;
             }
 
+            const nextSignature = JSON.stringify(rawData);
+            const todayNow = toDateStr(new Date());
+            const t = new Date();
+            const hhmm = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+
+            // ⚡ Smart Dirty Check: 서버 데이터와 날짜가 이전과 100% 동일하면 무거운 Full DOM 재구축 생략
+            if (!force && lastRawEventsSignature === nextSignature && lastRenderedDateStr === todayNow) {
+                setSyncBadge(`<span class="material-symbols-outlined text-[13px] text-green-500">cloud_done</span> 자동 sync: ${hhmm}`);
+                return;
+            }
+
+            lastRawEventsSignature = nextSignature;
             cachedEvents = extractTeamConfig(rawData);
             saveLocalEventsSnapshot();
 
-            renderCalendarUI();
+            if (!force && (document.hidden || isUserEditingOrModalOpen())) {
+                scheduleCalendarRender({ force: false });
+            } else {
+                renderCalendarUI({ force: true });
+            }
 
-            const t = new Date();
-            const hhmm = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
             setSyncBadge(`<span class="material-symbols-outlined text-[13px] text-green-500">cloud_done</span> 자동 sync: ${hhmm}`);
-            loadActions();   // Action List 함께 동기화
+            if (force && typeof loadActions === 'function') loadActions(true);
         } catch (e) { 
             setSyncBadge('<span class="material-symbols-outlined text-[13px] text-red-500">cloud_off</span> 연결 실패');
             console.error(e);
@@ -2213,8 +2358,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             : cachedEvents.filter(ev => ev.date === dateStr);
 
         if(dayEvents.length === 0) {
-            container.innerHTML = '<div class="text-center text-text-muted py-10 text-sm">등록된 일정이 없습니다.</div>';
+            container.insertAdjacentHTML('beforeend', '<div class="text-center text-text-muted py-10 text-sm">등록된 일정이 없습니다.</div>');
         } else {
+            const mobileDayParts = [];
             dayEvents.forEach(ev => {
                 const isVac = ev.line === '🏖️ 휴가자' || ev.isVacation === 'true' || ev.isVacation === true;
                 const catBorder = isVac ? 'border-blue-500 bg-blue-50/50' : (ev.category === 'cat-pm' ? 'border-emerald-500 bg-emerald-50/50' : (ev.category === 'cat-urgent' ? 'border-amber-500 bg-amber-50/50' : (ev.category === 'cat-setup' ? 'border-purple-500 bg-purple-50/50' : 'border-red-600 bg-red-50/50')));
@@ -2225,7 +2371,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                     ? `<span class="text-[10px] font-bold text-orange-600 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded ml-1">${escHtml(grp[0].date.slice(5))} ~ ${escHtml(grp[grp.length-1].date.slice(5))} (${grp.length}일)</span>`
                     : '';
 
-                container.innerHTML += `
+                mobileDayParts.push(`
                     <div class="relative border-l-4 ${catBorder} dark:bg-gray-800 p-3 mb-2 rounded-r-lg shadow-sm cursor-pointer active:opacity-70" onclick="closeMobileDayView(); openEditModal('${escHtml(ev.id)}')" data-id="${escHtml(ev.id)}">
                         <div class="flex justify-between items-start mb-1 pr-8">
                             <span class="text-xs font-bold text-text-muted bg-background px-2 py-0.5 rounded border border-border">${escHtml(ev.line)}${spanBadge}</span>
@@ -2238,13 +2384,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                         <button type="button" class="absolute top-2.5 right-2.5 text-text-muted hover:text-red-500 bg-surface/80 border border-border rounded p-1.5 flex items-center justify-center shadow-sm backdrop-blur-sm z-10" onclick="deleteEvent(event, this)">
                             <span class="material-symbols-outlined text-[16px]">delete</span>
                         </button>
-                    </div>`;
+                    </div>`);
             });
+            container.insertAdjacentHTML('beforeend', mobileDayParts.join(''));
         }
         document.getElementById('mobile-day-modal').classList.remove('hidden');
     }
 
-    function closeMobileDayView() { document.getElementById('mobile-day-modal').classList.add('hidden'); }
+    function closeMobileDayView() {
+        document.getElementById('mobile-day-modal').classList.add('hidden');
+        setTimeout(flushDeferredCalendarRender, 0);
+    }
 
     // ===== 🧑‍🤝‍🧑 인원 배정 기능: 해당 날짜의 라인별 작업 리스트 + 작업별 인원 선택 및 캘린더 작업자 자동 저장 =====
     let currentAssignState = {
@@ -2302,6 +2452,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function closeAssignModal() {
         document.getElementById('assign-modal').classList.add('hidden');
+        setTimeout(flushDeferredCalendarRender, 0);
     }
 
     function renderAssignModalUI() {
@@ -2463,8 +2614,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         });
 
         if (updateCount > 0) {
+            invalidateEventsDirtySignature();
             saveLocalEventsSnapshot();
-            renderCalendarUI();
+            renderCalendarUI({ force: true });
             showToast(`배정 내용 복사 완료! 작업자 ${updateCount}건이 일정표에 자동 저장되었습니다.`, 'info');
         } else {
             showToast('배정 내용이 클립보드에 복사되었습니다.', 'info');
@@ -2512,7 +2664,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             document.getElementById('modal-date-wrapper').classList.remove('hidden');
             document.getElementById('modal-note-msg').classList.add('hidden');
             document.getElementById('modal-note-id').value = '';
-            const defDate = dateStr || `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+            const defDate = dateStr || toDateStr(new Date());
             document.getElementById('modal-start-date').value = defDate;
             document.getElementById('modal-end-date').value = defDate;
         }
@@ -2567,7 +2719,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         document.getElementById('event-modal').classList.remove('hidden');
     }
 
-    function closeModal() { document.getElementById('event-modal').classList.add('hidden'); }
+    function closeModal() {
+        document.getElementById('event-modal').classList.add('hidden');
+        setTimeout(flushDeferredCalendarRender, 0);
+    }
 
     // ===== 💾 로컬 스냅샷 및 휴지통 (Zero Data Loss 안전망) =====
     const EVENTS_SNAPSHOT_KEY = 'hitachi_events_cache_snapshot';
@@ -2623,6 +2778,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (!target) return alert('복원할 일정을 찾을 수 없습니다.');
 
         eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateEventsDirtySignature();
         trash = trash.filter(ev => ev.id !== id);
         localStorage.setItem(EVENTS_TRASH_KEY, JSON.stringify(trash));
 
@@ -2633,7 +2789,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         sendToSheet({ action: 'add', ...restored });
         saveLocalEventsSnapshot();
 
-        renderCalendarUI();
+        renderCalendarUI({ force: true });
         if (typeof renderTrashList === 'function') renderTrashList();
         showToast(`'${restored.title}' 일정이 복원되었습니다.`, 'success');
         syncAfterWrites();
@@ -2667,6 +2823,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         
         if (!title) return alert("제목을 입력하세요.");
         eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateEventsDirtySignature();
         closeModal(); 
 
         const isVacation = line === '🏖️ 휴가자';
@@ -2753,8 +2910,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         // 로컬 스냅샷 즉시 동기화
         saveLocalEventsSnapshot();
 
-        // 로컬 데이터로 즉시 화면 다시 그리기
-        renderCalendarUI();
+        // 로컬 데이터로 즉시 화면 다시 그리기 (방금 저장된 내용이므로 강제 렌더링)
+        deferredCalendarRender = false;
+        renderCalendarUI({ force: true });
 
         // 2초 뒤 조용히 동기화
         syncAfterWrites();
@@ -2777,6 +2935,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (!confirm(msg)) return;
 
         eventReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateEventsDirtySignature();
         const toDeleteList = isMulti ? group : (target ? [target] : [{ id }]);
         saveDeletedToTrash(toDeleteList);
 
@@ -2925,10 +3084,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         ].join("\n");
 
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
+        link.href = blobUrl;
         link.setAttribute("download", `ScheduleDB_${toDateStr(new Date())}.csv`);
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
 
     // ===== 🏷️ 작업유형 태그 =====
@@ -3220,6 +3381,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     function closeSafetyDateModal() {
         const modal = document.getElementById('safety-modal');
         if (modal) modal.classList.add('hidden');
+        setTimeout(flushDeferredCalendarRender, 0);
     }
 
     function previewSafetyDays() {
@@ -3376,8 +3538,13 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     // ---------- 서버 통신 ----------
     let actionReadSeq = 0;
+    let lastActionsSignature = '';
 
-    async function loadActions() {
+    function invalidateActionsDirtySignature() {
+        lastActionsSignature = '';
+    }
+
+    async function loadActions(force = false) {
         if (!SCRIPT_URL.startsWith("https")) return;
 
         // 저장 요청이나 미전송 큐가 남아 있으면 서버에서 덮어쓰지 않는다 (Silent Rollback 완벽 방지)
@@ -3390,6 +3557,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         }
 
         const thisSeq = ++actionReadSeq;
+        let isChanged = force;
 
         try {
             const res = await fetch(SCRIPT_URL + "?t=" + new Date().getTime(),
@@ -3450,28 +3618,43 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                 });
 
                 const trashIds = new Set(getActionsTrash().map(t => t.id));
-                actionItems = data.filter(a => a && a.id && !trashIds.has(a.id) && !recentlyDeletedActionIds.has(a.id));
+                const nextActionItems = data.filter(a => a && a.id && !trashIds.has(a.id) && !recentlyDeletedActionIds.has(a.id));
 
                 // 서버 데이터가 로컬 변경사항을 정상 반영 완료했으면 recentActionUpdates에서 정리
-                actionItems.forEach(item => {
+                nextActionItems.forEach(item => {
                     const opt = recentActionUpdates.get(item.id);
                     if (opt && item.status === opt.status && (opt.progressLog === undefined || item.progressLog === opt.progressLog)) {
                         recentActionUpdates.delete(item.id);
                     }
                 });
 
+                const nextActSig = JSON.stringify(nextActionItems);
+                if (!force && actionBackendReady && lastActionsSignature === nextActSig) {
+                    return; // ⚡ Smart Dirty Check: 변경 없으면 DOM 재구축 및 스냅샷 저장 생략
+                }
+
+                lastActionsSignature = nextActSig;
+                actionItems = nextActionItems;
                 actionBackendReady = true;
+                isChanged = true;
                 saveLocalActionsSnapshot();
             } else {
                 actionBackendReady = false;   // 구버전 Apps Script
+                isChanged = true;
             }
         } catch (e) {
             console.error('Action 목록 로드 실패:', e);
+            return;
         }
+        if (!isChanged) return;
         updateActionBadge();
         renderTopActionWidget();     // 🌟 1번 기능: 상단 내 할 일 위젯 바 렌더링
         checkNewActionAlerts();      // 🌟 2번 기능: 새 업무 도착 팝업 검사
-        if (typeof renderCalendar === 'function') renderCalendar(); // 🌟 3번 기능: 달력 내 Action 칩 연동
+        if (typeof scheduleCalendarRender === 'function') {
+            scheduleCalendarRender({ force });
+        } else if (typeof renderCalendar === 'function') {
+            renderCalendar({ force });
+        }
         checkActionNotifications();  // 브라우저 알림
         if (!document.getElementById('action-drawer').classList.contains('translate-x-full')) renderActionList();
     }
@@ -3725,6 +3908,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
             form.classList.add('hidden');
             openBtn.parentElement.classList.remove('hidden');
             document.getElementById('action-edit-id').value = '';
+            setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
             return;
         }
         form.classList.remove('hidden');
@@ -3856,6 +4040,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (actionPickedAssignees.length === 0) return alert('담당자를 선택해주세요.');
 
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
 
         const assigneeStr = actionPickedAssignees.join(', ');
 
@@ -3902,12 +4087,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
-        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderCalendarUI === 'function') renderCalendarUI({ force: true });
         syncAfterWrites();
     }
 
     function toggleActionDone(id) {
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
+        invalidateActionsDirtySignature();
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         const done = it.status !== 'done';
@@ -3925,7 +4112,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
-        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderCalendarUI === 'function') renderCalendarUI({ force: true });
     }
 
     function editActionItem(id) {
@@ -3951,6 +4138,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const text = input.value.trim();
         if (!text) return;
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
+        invalidateActionsDirtySignature();
         const it = actionItems.find(a => a.id === id);
         if (!it) return;
         const me = getCurrentUsername();
@@ -3982,6 +4171,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function saveProgressLog(id) {
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
+        invalidateActionsDirtySignature();
         const textarea = document.getElementById(`progress-edit-textarea-${id}`);
         if (!textarea) return;
         const it = actionItems.find(a => a.id === id);
@@ -3999,6 +4190,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (!it) return;
         if (!confirm(`'${it.title}' 항목을 삭제하시겠습니까?`)) return;
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
         recentlyDeletedActionIds.add(id);
         saveDeletedActionToTrash(it);
         actionItems = actionItems.filter(a => a.id !== id);
@@ -4007,7 +4199,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
-        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderCalendarUI === 'function') renderCalendarUI({ force: true });
         showToast('업무가 삭제되었습니다. (휴지통에 안전 보관됨)', 'info');
         syncAfterWrites();
     }
@@ -4026,6 +4218,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         const target = trash.find(a => a.id === id);
         if (!target) return alert('복원할 업무를 찾을 수 없습니다.');
         actionReadSeq++; // 🛡️ 진행 중이던 이전 읽기 요청 무효화
+        invalidateActionsDirtySignature();
 
         // 휴지통 및 삭제 대기 목록에서 제거
         trash = trash.filter(a => a.id !== id);
@@ -4043,7 +4236,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         renderActionList();
         updateActionBadge();
         renderTopActionWidget();
-        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderCalendarUI === 'function') renderCalendarUI({ force: true });
         if (typeof renderTrashList === 'function') renderTrashList();
         showToast(`'${restored.title}' 업무가 복원되었습니다.`, 'success');
         syncAfterWrites();
@@ -4264,6 +4457,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     function closeDashboard() {
         document.getElementById('dashboard-modal').classList.add('hidden');
         destroyDashCharts();
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
     }
     function setDashPeriod(p) { dashPeriod = p; renderPeriodPicks(); renderDashboard(); }
 
@@ -4852,7 +5046,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         document.getElementById('alarm-modal').classList.remove('hidden');
     }
 
-    function closeAlarmModal() { document.getElementById('alarm-modal').classList.add('hidden'); }
+    function closeAlarmModal() {
+        document.getElementById('alarm-modal').classList.add('hidden');
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
+    }
     // ===========================
 
     // ===== 🗑️ 휴지통 (삭제 데이터 복구 모달) =====
@@ -4866,6 +5063,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function closeTrashModal() {
         document.getElementById('trash-modal').classList.add('hidden');
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
     }
 
     function switchTrashTab(tab) {
@@ -5100,6 +5298,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function closeEquipModal() {
         document.getElementById('equip-modal').classList.add('hidden');
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
     }
     // ===========================
 
@@ -5129,17 +5328,47 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         if (typeof renderTopActionWidget === 'function') renderTopActionWidget();
     }
 
-    // 3. 백그라운드 병렬 동기화 함수
-    function syncAllDataParallel() {
-        if (typeof loadEventsFromSheet === 'function') loadEventsFromSheet();
-        if (typeof loadActions === 'function') loadActions();
+    // 3. 백그라운드 병렬 동기화 함수 (Page Visibility API 적용: 비활성 탭 동결)
+    let lastSyncCompletedAt = 0;
+
+    function syncAllDataParallel(force = false) {
+        if (!force && typeof document !== 'undefined' && document.hidden) {
+            return;
+        }
+        lastSyncCompletedAt = Date.now();
+        if (typeof loadEventsFromSheet === 'function') loadEventsFromSheet(force);
+        if (typeof loadActions === 'function') loadActions(force);
+    }
+
+    function manualSyncAll() {
+        syncAllDataParallel(true);
     }
 
     // 초기 병렬 동기화 시작
-    syncAllDataParallel();
+    syncAllDataParallel(true);
 
-    // 1분 주기 백그라운드 병렬 동기화
-    setInterval(syncAllDataParallel, 60000);
+    // 1분 주기 백그라운드 병렬 동기화 (백그라운드 탭에서는 자동 스킵)
+    setInterval(() => syncAllDataParallel(false), 60000);
+
+    // 탭 재활성화 시 보류된 렌더링 복구 + 45초 이상 경과 시 1회 최신 동기화
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+
+        const todayNow = typeof toDateStr === 'function' ? toDateStr(new Date()) : '';
+        const dateChanged = (typeof lastRenderedDateStr !== 'undefined' && todayNow && lastRenderedDateStr !== todayNow);
+        if ((typeof needsRenderOnVisible !== 'undefined' && needsRenderOnVisible) || dateChanged) {
+            if (typeof needsRenderOnVisible !== 'undefined') needsRenderOnVisible = false;
+            if (typeof scheduleCalendarRender === 'function') {
+                scheduleCalendarRender({ force: dateChanged });
+            } else if (typeof renderCalendarUI === 'function') {
+                renderCalendarUI({ force: true });
+            }
+        }
+
+        if (Date.now() - lastSyncCompletedAt >= 45000) {
+            syncAllDataParallel(false);
+        }
+    });
 
     // ==========================================
 
@@ -5148,6 +5377,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
     // ==========================================
     let searchFilterType = 'all';
     let currentSearchResults = [];
+    let searchDebounceTimer = null;
+
+    function debouncedPerformSearch() {
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            searchDebounceTimer = null;
+            performSearch();
+        }, 140);
+    }
 
     function openSearchModal(initialQuery = '') {
         const modal = document.getElementById('search-modal');
@@ -5164,6 +5402,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
     function closeSearchModal() {
         document.getElementById('search-modal').classList.add('hidden');
+        setTimeout(() => { if (typeof flushDeferredCalendarRender === 'function') flushDeferredCalendarRender(); }, 0);
     }
 
     function clearSearchInput() {
@@ -5196,6 +5435,31 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                 openSearchModal();
             } else {
                 closeSearchModal();
+            }
+            return;
+        }
+        if (e.key === 'Escape') {
+            const modalOrder = [
+                { id: 'new-action-modal', close: () => typeof closeNewActionModal === 'function' && closeNewActionModal(false) },
+                { id: 'search-modal', close: () => closeSearchModal() },
+                { id: 'trash-modal', close: () => typeof closeTrashModal === 'function' && closeTrashModal() },
+                { id: 'dashboard-modal', close: () => typeof closeDashboard === 'function' && closeDashboard() },
+                { id: 'safety-modal', close: () => typeof closeSafetyDateModal === 'function' && closeSafetyDateModal() },
+                { id: 'holiday-modal', close: () => typeof closeHolidayModal === 'function' && closeHolidayModal() },
+                { id: 'team-modal', close: () => typeof closeTeamModal === 'function' && closeTeamModal() },
+                { id: 'alarm-modal', close: () => typeof closeAlarmModal === 'function' && closeAlarmModal() },
+                { id: 'equip-modal', close: () => typeof closeEquipModal === 'function' && closeEquipModal() },
+                { id: 'htk-calendar-modal', close: () => typeof closeHtkCalendarModal === 'function' && closeHtkCalendarModal() },
+                { id: 'assign-modal', close: () => typeof closeAssignModal === 'function' && closeAssignModal() },
+                { id: 'event-modal', close: () => typeof closeModal === 'function' && closeModal() },
+                { id: 'mobile-day-modal', close: () => typeof closeMobileDayView === 'function' && closeMobileDayView() }
+            ];
+            for (let i = 0; i < modalOrder.length; i++) {
+                const el = document.getElementById(modalOrder[i].id);
+                if (el && !el.classList.contains('hidden')) {
+                    modalOrder[i].close();
+                    break;
+                }
             }
         }
     });
@@ -5455,13 +5719,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
 
         const csvContent = [headers.map(toCsvCell).join(','), ...rows].join('\n');
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
+        link.href = blobUrl;
         const query = (document.getElementById('search-input').value || '검색결과').trim();
         link.setAttribute("download", `ScheduleSearch_${query}_${toDateStr(new Date())}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
 </script>
 <!-- 🔍 통합 일정/작업 이력 검색 모달 -->
@@ -5486,7 +5752,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
                 <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-[20px]">search</span>
                 <input type="text" id="search-input" placeholder="작업명, 설비호기(MDIB701 등), 작업자, 태그(PM 등) 검색..." 
                     class="w-full bg-background border border-border text-text-main text-sm md:text-base font-bold rounded-xl pl-11 pr-10 py-3 outline-none focus:border-primary transition-colors shadow-inner"
-                    oninput="performSearch()" onkeydown="if(event.key==='Escape') closeSearchModal()">
+                    oninput="debouncedPerformSearch()" onkeydown="if(event.key==='Escape') closeSearchModal()">
                 <button id="search-clear-btn" onclick="clearSearchInput()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-500 p-1">
                     <span class="material-symbols-outlined text-[18px]">cancel</span>
                 </button>
