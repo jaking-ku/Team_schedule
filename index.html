@@ -616,6 +616,10 @@ html.dark .safety-days {
         <button class="nav-item" onclick="manualSyncAll()">
             <span class="material-symbols-outlined">sync</span> SYNC
         </button>
+        <button class="nav-item text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" onclick="exportDebugDiagnostics()" title="디버그 진단 로그 다운로드 (단축키: Ctrl+Shift+D)">
+            <span class="material-symbols-outlined">bug_report</span> 디버그 로그
+            <span class="search-shortcut hidden md:inline ml-auto text-[9px]">Ctrl+Shift+D</span>
+        </button>
         <div class="px-[18px] pt-1 pb-1">
             <span class="cloud-sync-badge text-[10px] text-text-muted flex items-center gap-1 font-bold">
                 <span class="material-symbols-outlined text-[13px] animate-spin">sync</span> 연결 준비중
@@ -5927,6 +5931,267 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIPcjWzRRT7sEVpEENU
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
+
+// [Module: debug_logger.js]
+// ============================================================
+// 🛠️ 개발자 전용 디버그 진단 및 Flight Recorder 모듈 (debug_logger.js)
+// 단축키: Ctrl + Shift + D (또는 F2)
+// 기능: 런타임 오류, 앱 상태, 이벤트 데이터, DOM 구조, 콘솔 로그를
+//       하나의 완결된 JSON 파일로 즉시 추출 및 클립보드 복사
+// ============================================================
+
+(function() {
+    const MAX_FLIGHT_LOGS = 300;
+    window.__debugFlightLogs = [];
+
+    // 1. 콘솔 로그 인터셉트 (Flight Recorder)
+    function pushFlightLog(level, args) {
+        try {
+            const formatted = Array.from(args).map(item => {
+                if (item === null) return 'null';
+                if (item === undefined) return 'undefined';
+                if (typeof item === 'object') {
+                    try { return JSON.stringify(item); } catch (_) { return String(item); }
+                }
+                return String(item);
+            }).join(' ');
+
+            window.__debugFlightLogs.push({
+                time: new Date().toISOString(),
+                level: level,
+                message: formatted
+            });
+
+            if (window.__debugFlightLogs.length > MAX_FLIGHT_LOGS) {
+                window.__debugFlightLogs.shift();
+            }
+        } catch (_) {}
+    }
+
+    const levels = ['log', 'info', 'warn', 'error'];
+    levels.forEach(lvl => {
+        const originalFn = console[lvl];
+        console[lvl] = function(...args) {
+            pushFlightLog(lvl, args);
+            if (originalFn) {
+                originalFn.apply(console, args);
+            }
+        };
+    });
+
+    // 2. 잡히지 않은 런타임 에러 자동 감지
+    window.addEventListener('error', function(ev) {
+        pushFlightLog('unhandled_error', [
+            ev.message || 'Unknown error',
+            'at ' + (ev.filename || '') + ':' + (ev.lineno || '') + ':' + (ev.colno || ''),
+            ev.error && ev.error.stack ? ev.error.stack : ''
+        ]);
+    });
+
+    window.addEventListener('unhandledrejection', function(ev) {
+        pushFlightLog('unhandled_rejection', [
+            ev.reason ? (ev.reason.stack || ev.reason) : 'Promise rejected'
+        ]);
+    });
+
+    // 3. 시스템 진단 데이터 종합 수집 (스냅샷 생성)
+    window.captureSystemDiagnostics = function() {
+        const now = new Date();
+        const y = typeof currentYear !== 'undefined' ? currentYear : now.getFullYear();
+        const m = typeof currentMonth !== 'undefined' ? currentMonth : (now.getMonth() + 1);
+        const curMonthPrefix = `${y}-${String(m).padStart(2, '0')}`;
+
+        // 라인별 이벤트 집계
+        const lineStats = {};
+        let currentMonthCount = 0;
+        if (typeof cachedEvents !== 'undefined' && Array.isArray(cachedEvents)) {
+            cachedEvents.forEach(ev => {
+                const lineName = ev.line || '미분류';
+                lineStats[lineName] = (lineStats[lineName] || 0) + 1;
+                if (ev.date && String(ev.date).startsWith(curMonthPrefix)) {
+                    currentMonthCount++;
+                }
+            });
+        }
+
+        // 열려있는 모달 목록 파악
+        const openModals = Array.from(document.querySelectorAll('.fixed.inset-0:not(.hidden)'))
+            .map(el => el.id || el.className)
+            .filter(Boolean);
+
+        // 연속 막대(.span-card) 렌더링 상세 파악
+        const spanCardDetails = Array.from(document.querySelectorAll('.span-card')).map(card => {
+            const cell = card.closest('.grid-cell');
+            return {
+                id: card.dataset.id || '',
+                text: (card.innerText || '').replace(/\n/g, ' | '),
+                className: card.className,
+                styleWidth: card.style.width,
+                styleTop: card.style.top,
+                styleLeft: card.style.left,
+                cellDate: cell ? cell.dataset.date : null,
+                cellLine: cell ? cell.dataset.line : null
+            };
+        });
+
+        // 클라이언트 환경 및 메모리
+        const memInfo = (performance && performance.memory) ? {
+            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
+            totalJSHeapSize: performance.memory.totalJSHeapSize,
+            usedJSHeapSize: performance.memory.usedJSHeapSize
+        } : null;
+
+        return {
+            reportTitle: 'HITACHI Team Scheduler System Diagnostics Snapshot',
+            timestampIso: now.toISOString(),
+            timestampLocal: now.toLocaleString(),
+            client: {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                online: navigator.onLine,
+                viewport: `${window.innerWidth}x${window.innerHeight}`,
+                screen: `${window.screen.width}x${window.screen.height}`,
+                devicePixelRatio: window.devicePixelRatio,
+                pageUrl: window.location.href,
+                memory: memInfo
+            },
+            appRuntime: {
+                currentYear: y,
+                currentMonth: m,
+                currentUser: localStorage.getItem('team_schedule_user') || '미설정',
+                isEditingOrModalOpen: typeof isUserEditingOrModalOpen === 'function' ? isUserEditingOrModalOpen() : null,
+                openModals: openModals,
+                pendingWrites: typeof pendingWrites !== 'undefined' ? pendingWrites : null,
+                pendingQueueLength: typeof getPendingQueue === 'function' ? getPendingQueue().length : 0,
+                activeSortableCount: typeof activeSortableInstances !== 'undefined' ? activeSortableInstances.length : 0,
+                lastRawEventsSignatureLength: typeof lastRawEventsSignature !== 'undefined' ? lastRawEventsSignature.length : 0,
+                lastRenderedDateStr: typeof lastRenderedDateStr !== 'undefined' ? lastRenderedDateStr : null
+            },
+            dataSummary: {
+                totalCachedEvents: typeof cachedEvents !== 'undefined' ? cachedEvents.length : 0,
+                currentMonthEvents: currentMonthCount,
+                lineDistribution: lineStats,
+                totalActions: typeof allActions !== 'undefined' ? allActions.length : 0
+            },
+            domSummary: {
+                weekScheduleGridsCount: document.querySelectorAll('.grid-schedule').length,
+                totalEventCards: document.querySelectorAll('.event-card').length,
+                totalSpanCards: spanCardDetails.length,
+                spanCardsDetail: spanCardDetails
+            },
+            flightLogs: (window.__debugFlightLogs || []).slice(-200),
+            cachedEventsSnapshot: typeof cachedEvents !== 'undefined' ? cachedEvents : []
+        };
+    };
+
+    // 4. 진단 데이터 JSON 파일 다운로드 및 클립보드 복사 실행
+    window.exportDebugDiagnostics = async function() {
+        const diagnostics = window.captureSystemDiagnostics();
+        const jsonString = JSON.stringify(diagnostics, null, 2);
+
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const fileTimestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const fileName = `team_scheduler_debug_${fileTimestamp}.json`;
+
+        // 1) JSON 파일 자동 다운로드
+        try {
+            const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+            const blobUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = blobUrl;
+            anchor.setAttribute('download', fileName);
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+        } catch (downloadErr) {
+            console.error('진단 파일 다운로드 오류:', downloadErr);
+        }
+
+        // 2) 클립보드 복사 시도
+        let clipboardCopied = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(jsonString);
+                clipboardCopied = true;
+            } catch (_) {
+                clipboardCopied = false;
+            }
+        }
+
+        // 3) 사용자 피드백 안내창 (모달/토스트)
+        showDebugExportModal(fileName, diagnostics, clipboardCopied);
+    };
+
+    // 5. 디버그 추출 결과 안내 모달 표시
+    function showDebugExportModal(fileName, diag, copied) {
+        let modal = document.getElementById('debug-export-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'debug-export-modal';
+            modal.className = 'fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4';
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div class="bg-surface border border-border rounded-2xl shadow-2xl max-w-lg w-full p-6 text-text-main flex flex-col gap-4">
+                <div class="flex items-center justify-between border-b border-border pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-500 text-[26px]">bug_report</span>
+                        <h3 class="text-base font-black">개발자 디버그 로그 추출 완료</h3>
+                    </div>
+                    <button type="button" onclick="closeDebugExportModal()" class="text-text-muted hover:text-red-500">
+                        <span class="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                </div>
+                <div class="text-xs space-y-2.5">
+                    <p class="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                        진단 파일(JSON)이 즉시 다운로드되었습니다!
+                    </p>
+                    <div class="bg-background rounded-xl p-3 border border-border space-y-1 font-mono text-[11px]">
+                        <div>파일명: <b class="text-primary">${escHtml(fileName)}</b></div>
+                        <div>총 캐시 일정: <b>${diag.dataSummary.totalCachedEvents}개</b> (이번 달: <b>${diag.dataSummary.currentMonthEvents}개</b>)</div>
+                        <div>연속 일정 막대: <b>${diag.domSummary.totalSpanCards}개</b></div>
+                        <div>최근 콘솔 로그: <b>${diag.flightLogs.length}건</b></div>
+                        <div>클립보드 복사: <b class="${copied ? 'text-green-600' : 'text-amber-600'}">${copied ? '복사 성공 (Ctrl+V 가능)' : '미지원 또는 권한필요'}</b></div>
+                    </div>
+                    <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-amber-900 dark:text-amber-200">
+                        <p class="font-bold mb-1">💡 AI 어시스턴트 전달 방법:</p>
+                        <p class="opacity-90">다운로드된 JSON 파일 또는 클립보드에 복사된 내용을 대화창에 그대로 붙여넣어 주시면, 화면 상태와 원인 데이터를 즉시 정밀 분석할 수 있습니다.</p>
+                    </div>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="button" onclick="closeDebugExportModal()" class="px-5 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90">
+                        확인
+                    </button>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+    }
+
+    window.closeDebugExportModal = function() {
+        const modal = document.getElementById('debug-export-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // 6. 단축키 리스너 등록: Ctrl + Shift + D 또는 F2
+    document.addEventListener('keydown', function(e) {
+        // Ctrl + Shift + D (또는 Mac의 Cmd + Shift + D)
+        const isCtrlShiftD = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd');
+        const isF2 = e.key === 'F2';
+
+        if (isCtrlShiftD || isF2) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.exportDebugDiagnostics();
+        }
+    });
+
+    console.log('🛠️ [Debug Logger] 개발자 디버그 모듈 및 Flight Recorder 활성화 완료 (단축키: Ctrl+Shift+D)');
+})();
 </script>
 <!-- 🔍 통합 일정/작업 이력 검색 모달 -->
 <div id="search-modal" class="fixed inset-0 bg-black/60 hidden z-[95] flex items-start md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
